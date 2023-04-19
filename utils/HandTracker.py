@@ -1,6 +1,6 @@
 import numpy as np
 from collections import namedtuple
-import utils.mediapipe_utils as mpu
+import utils.MediapipeUtils as mpu
 import depthai as dai
 import cv2
 from pathlib import Path
@@ -503,6 +503,7 @@ class HandTracker:
 
             in_video = self.q_video.get()
             video_frame = in_video.getCvFrame()
+
             if self.pad_h:
                 square_frame = cv2.copyMakeBorder(video_frame, self.pad_h, self.pad_h, self.pad_w, self.pad_w,
                                                   cv2.BORDER_CONSTANT)

@@ -1,51 +1,8 @@
 import cv2
-import numpy as np
 from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.QtCore import pyqtSignal, QThread, Qt
+from PyQt5.QtCore import Qt
 
-from utils.HandTracker import HandTracker
-
-
-class VideoThread(QThread):
-    change_pixmap_signal = pyqtSignal(np.ndarray)
-    LINES_HAND = [[0, 1], [1, 2], [2, 3], [3, 4],
-                  [0, 5], [5, 6], [6, 7], [7, 8],
-                  [5, 9], [9, 10], [10, 11], [11, 12],
-                  [9, 13], [13, 14], [14, 15], [15, 16],
-                  [13, 17], [17, 18], [18, 19], [19, 20], [0, 17]]
-
-    def __init__(self):
-        super().__init__()
-        self._run_flag = True
-        self.tracker = HandTracker()
-
-    def draw(self, frame, hands):
-        frame = cv2.putText(frame, f"FPS: {self.tracker.fps.get()}:",
-                            (0, 25), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
-        if hands:
-            for hand in hands:
-                for landmark in hand.landmarks:
-                    frame = cv2.circle(frame, landmark, radius=1, color=(0, 0, 255), thickness=10)
-
-                for line in self.LINES_HAND:
-                    frame = cv2.line(frame, hand.landmarks[line[0]], hand.landmarks[line[1]], color=(0, 0, 255),
-                                     thickness=2)
-
-        return frame
-
-    def run(self):
-
-        while self._run_flag:
-            frame, hands, bag = self.tracker.next_frame()
-            if frame.any():
-                frame = self.draw(frame, hands)
-                self.change_pixmap_signal.emit(frame)
-
-    def stop(self):
-        """Sets run flag to False and waits for thread to finish"""
-        self._run_flag = False
-        self.tracker.exit()
-        self.wait()
+from utils.VideoThread import VideoThread
 
 
 class App:
