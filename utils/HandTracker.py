@@ -10,10 +10,10 @@ import sys
 from math import sin, cos
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-PALM_DETECTION_MODEL = str(SCRIPT_DIR / "../models/palm_detection_sh4.blob")
-LANDMARK_MODEL_FULL = str(SCRIPT_DIR / "../models/hand_landmark_full_sh4.blob")
-LANDMARK_MODEL_LITE = str(SCRIPT_DIR / "../models/hand_landmark_lite_sh4.blob")
-LANDMARK_MODEL_SPARSE = str(SCRIPT_DIR / "../models/hand_landmark_sparse_sh4.blob")
+PALM_DETECTION_MODEL = str(SCRIPT_DIR / "../checkpoints/palm_detection_sh4.blob")
+LANDMARK_MODEL_FULL = str(SCRIPT_DIR / "../checkpoints/hand_landmark_full_sh4.blob")
+LANDMARK_MODEL_LITE = str(SCRIPT_DIR / "../checkpoints/hand_landmark_lite_sh4.blob")
+LANDMARK_MODEL_SPARSE = str(SCRIPT_DIR / "../checkpoints/hand_landmark_sparse_sh4.blob")
 
 
 def to_planar(arr: np.ndarray, shape: tuple) -> np.ndarray:

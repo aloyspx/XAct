@@ -1,2 +1,2 @@
-class TableNotFoundException(Exception):
+class DetectorPlaneNotFoundException(Exception):
     pass
