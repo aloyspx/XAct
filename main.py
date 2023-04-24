@@ -2,7 +2,7 @@ import cv2
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import Qt
 
-from utils.VideoThread import VideoThread
+from src.VideoThread import VideoThread
 
 
 class App:
@@ -46,7 +46,7 @@ class App:
         self.protocolDropdown = QtWidgets.QComboBox(self.centralwidget)
         self.protocolDropdown.setGeometry(QtCore.QRect(820, 40, 195, 41))
         self.protocolDropdown.setObjectName("protocolDropdown")
-        self.protocolDropdown.addItems(["No Protocol", "Protocol1", "Protocol2", "Protocol3"])
+        self.protocolDropdown.addItems(["No Protocol", "Hand PA View", "Hand Oblique View", "Hand Lateral View"])
         MainWindow.setCentralWidget(self.centralwidget)
 
         self.menubar = QtWidgets.QMenuBar(MainWindow)

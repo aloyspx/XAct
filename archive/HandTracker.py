@@ -1,10 +1,10 @@
 import numpy as np
 from collections import namedtuple
-import utils.MediapipeUtils as mpu
+import src.MediapipeUtils as mpu
 import depthai as dai
 import cv2
 from pathlib import Path
-from utils.FPS import FPS, now
+from src.FPS import FPS, now
 import time
 import sys
 from math import sin, cos

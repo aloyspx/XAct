@@ -1,7 +1,8 @@
+from collections import namedtuple
+from math import ceil, sqrt, pi, floor, sin, cos, atan2, gcd
+
 import cv2
 import numpy as np
-from collections import namedtuple
-from math import ceil, sqrt, exp, pi, floor, sin, cos, atan2, gcd
 
 # To not display: RuntimeWarning: overflow encountered in exp
 # in line:  scores = 1 / (1 + np.exp(-scores))
@@ -1013,5 +1014,3 @@ class BodyPreFocusing:
             return (get_one_hand_zone(hand_label), hand_label)
         else:  # "left" or "right"
             return (get_one_hand_zone(self.mode), self.mode)
-
-

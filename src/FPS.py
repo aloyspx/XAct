@@ -2,8 +2,9 @@
 @author: geaxx
 """
 import time
-import cv2
 from collections import deque
+
+import cv2
 
 
 def now():
