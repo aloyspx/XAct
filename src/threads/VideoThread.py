@@ -4,16 +4,15 @@ from PyQt5.QtCore import pyqtSignal, QThread
 
 from src.Constants import LINES_HAND
 from src.HandTracker import HandTracker
-from src.Geometry import calc_angle_between_planes
 
 
 class VideoThread(QThread):
     change_pixmap_signal = pyqtSignal(np.ndarray)
 
-    def __init__(self):
+    def __init__(self, tracker: HandTracker):
         super().__init__()
         self._run_flag = True
-        self.tracker = HandTracker()
+        self.tracker = tracker
 
     def draw(self, frame, hands):
         frame = cv2.putText(frame, f"FPS: {self.tracker.fps.get()}:",
@@ -32,25 +31,13 @@ class VideoThread(QThread):
         return frame
 
     def run(self):
-        count = 0
         while self._run_flag:
 
             frame, hands = self.tracker.next_frame()
+
             if frame.any():
                 frame = self.draw(frame, hands)
-
-                if len(self.tracker.hand_hist["left"]) == 10 and count == 10:
-                    h_plane = self.tracker.get_hand_plane(display=False)["left"]
-                    d_plane = self.tracker.detector_plane
-                    from src.Visualisers import viz_matplotlib
-                    viz_matplotlib(d_plane, [], [])
-                    print(calc_angle_between_planes(h_plane, d_plane))
-                    count = 0
-
                 self.change_pixmap_signal.emit(frame)
-
-                if hands:
-                    count+=1
 
     def stop(self):
         """Sets run flag to False and waits for thread to finish"""

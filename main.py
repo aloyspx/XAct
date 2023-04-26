@@ -2,7 +2,9 @@ import cv2
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import Qt
 
-from src.VideoThread import VideoThread
+from src.HandTracker import HandTracker
+from src.threads.PlaneCalculatorThread import PlaneCalculatorThread
+from src.threads.VideoThread import VideoThread
 
 
 class App:
@@ -64,12 +66,19 @@ class App:
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
+        # Calculates information about positioning in the background
+        self.tracker = HandTracker()
+
         # create the video capture thread
-        self.thread = VideoThread()
+        self.video_thread = VideoThread(self.tracker)
         # connect its signal to the update_image slot
-        self.thread.change_pixmap_signal.connect(self.update_image)
+        self.video_thread.change_pixmap_signal.connect(self.update_image)
         # start the thread
-        self.thread.start()
+        self.video_thread.start()
+
+        # Calculates information about positioning in the background
+        self.hand_plane_thread = PlaneCalculatorThread(self.tracker)
+        self.hand_plane_thread.start()
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate

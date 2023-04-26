@@ -1,18 +1,18 @@
 """Heavily inspired from depthai example"""
-
-import pathlib
-import random
-from collections import deque
+import dis
 
 import cv2
+import pathlib
+from collections import deque
+
 import depthai as dai
+import depthai.node
 import numpy as np
-import pyransac3d as pyransac
+from threading import Lock
 
 import src.MediapipeUtils as mpu
-from src.CustomExceptions import DetectorPlaneNotFoundException
+from src.CustomFilters import WLSFilter
 from src.FPS import FPS
-from src.Visualisers import viz_matplotlib
 
 
 def to_planar(arr: np.ndarray, shape: tuple) -> np.ndarray:
@@ -24,7 +24,6 @@ class HandTracker:
     LM_BLOB_PATH = "checkpoints/hand_landmark_full_sh4.blob"
     INTERNAL_FPS = 23
     INTERNAL_FRAME_HEIGHT = 640
-    N_RETRIES = 10
     DEPTH_REGION_SIZE = 7
     RESOLUTION = (1920, 1080)
 
@@ -36,9 +35,18 @@ class HandTracker:
     LM_INP_LENGTH = 224
 
     def __init__(self, solo=False):
+
         # Sensor variables
+        super().__init__()
         self.hands_from_landmarks = None
         self.img_w, self.img_h = None, None
+
+        # WLS filtering
+        self.baseline = 75  # mm
+        self.fov = 71.86
+        self.disp_multiplier = None
+
+        self.wls_filter = WLSFilter(_lambda=8000, _sigma=1.5, baseline=self.baseline, fov=self.fov)
 
         # Prediction variables
         self.solo = solo
@@ -62,15 +70,21 @@ class HandTracker:
         # FPS
         self.fps = FPS()
 
-        # Pipeline
+        # self.pipeline
         self.device = dai.Device()
-        pipeline = self.create_pipeline()
-        self.device.startPipeline(pipeline)
+
+        self.pipeline = dai.Pipeline()
+        self.create_pipeline()
+        self.device.startPipeline(self.pipeline)
 
         # Queues
         self.rgb_out = self.device.getOutputQueue(name="rgb_out", maxSize=1, blocking=False)
         self.dpt_out = self.device.getOutputQueue(name="dpt_out", maxSize=1, blocking=False)
+        self.sdo_out = self.device.getOutputQueue(name="sdo_out", maxSize=2, blocking=False)
         self.imu_out = self.device.getOutputQueue(name="imu_out", maxSize=1, blocking=False)
+
+        self.right = self.device.getOutputQueue(name="right", maxSize=4, blocking=False)
+        self.disp = self.device.getOutputQueue(name="disp", maxSize=4, blocking=False)
 
         self.pd_in = self.device.getInputQueue(name="pd_in")
         self.pd_out = self.device.getOutputQueue(name="pd_out", maxSize=4, blocking=True)
@@ -86,15 +100,10 @@ class HandTracker:
 
         # Detector Plane
         self.detector_plane = [0, 0, 0, 0]
-        self.get_detector_plane()
 
-    def create_pipeline(self):
-        pipeline = dai.Pipeline()
-        pipeline.setOpenVINOVersion(version=dai.OpenVINO.Version.VERSION_2021_4)
-
-        print("Sensor setup....")
+    def create_rgb_pipeline(self) -> (dai.node.ImageManip, dai.node.ColorCamera):
         #### RGB Setup ####
-        rgb = pipeline.createColorCamera()
+        rgb = self.pipeline.createColorCamera()
         rgb.setResolution(dai.ColorCameraProperties.SensorResolution.THE_1080_P)
         rgb.setBoardSocket(dai.CameraBoardSocket.RGB)
         rgb.setInterleaved(False)
@@ -103,7 +112,7 @@ class HandTracker:
         rgb.setFps(self.INTERNAL_FPS)
 
         # Image manipulation for palm detection
-        manip = pipeline.createImageManip()
+        manip = self.pipeline.createImageManip()
         manip.setMaxOutputFrameSize(self.PD_INP_LENGTH ** 2 * 3)
         manip.setWaitForConfigInput(True)
         manip.inputImage.setQueueSize(1)
@@ -113,16 +122,19 @@ class HandTracker:
         rgb.setVideoSize(self.img_w, self.img_h)
         rgb.setPreviewSize(self.img_w, self.img_h)
 
-        manip_cfg_in = pipeline.createXLinkIn()
+        manip_cfg_in = self.pipeline.createXLinkIn()
         manip_cfg_in.setStreamName("manip_cfg")
         manip_cfg_in.out.link(manip.inputConfig)
 
-        rgb_out = pipeline.createXLinkOut()
+        rgb_out = self.pipeline.createXLinkOut()
         rgb_out.setStreamName("rgb_out")
         rgb_out.input.setQueueSize(1)
         rgb_out.input.setBlocking(False)
         rgb.video.link(rgb_out.input)
 
+        return rgb, manip
+
+    def create_dpt_pipeline(self, rgb):
         #### Depth Setup ####
         # Set camera to fixed focus for RGB/depth alignment
         calib = self.device.readCalibration()
@@ -130,107 +142,139 @@ class HandTracker:
         rgb.initialControl.setManualFocus(calib_pos)
 
         # Left MonoCamera
-        left = pipeline.createMonoCamera()
+        left = self.pipeline.createMonoCamera()
         left.setBoardSocket(dai.CameraBoardSocket.LEFT)
         left.setResolution(dai.MonoCameraProperties.SensorResolution.THE_480_P)
         left.setFps(self.INTERNAL_FPS)
 
         # Right MonoCamera
-        right = pipeline.createMonoCamera()
+        right = self.pipeline.createMonoCamera()
         right.setBoardSocket(dai.CameraBoardSocket.RIGHT)
         right.setResolution(dai.MonoCameraProperties.SensorResolution.THE_480_P)
         right.setFps(self.INTERNAL_FPS)
 
         # Stereo Camera
-        dpt = pipeline.createStereoDepth()
-        dpt.setDefaultProfilePreset(dai.node.StereoDepth.PresetMode.HIGH_ACCURACY)
-        dpt.setLeftRightCheck(True)
-        dpt.setDepthAlign(dai.CameraBoardSocket.RGB)
-        # Increase accuracy set to False, latency tradeoff
-        dpt.setSubpixel(False)
+        stro = self.pipeline.createStereoDepth()
+        stro.initialConfig.setConfidenceThreshold(255)
+        stro.setRectifyEdgeFillColor(0)
+        stro.setLeftRightCheck(True)  # Must be true for RGB/depth alignment, false would be better for occlusion
+        stro.setDepthAlign(dai.CameraBoardSocket.RGB)
+
+        stro.setExtendedDisparity(False)
+        stro.setSubpixel(False)
+
+        # Set depth map output
+        dpt = self.pipeline.createXLinkOut()
+        dpt.setStreamName("dpt_out")
+        dpt.input.setQueueSize(1)
+        dpt.input.setBlocking(False)
+        stro.depth.link(dpt.input)
+
+        rectifiedLeft = self.pipeline.createXLinkOut()
+        rectifiedLeft.setStreamName("right")
+        stro.rectifiedLeft.link(rectifiedLeft.input)
+
+        disp = self.pipeline.createXLinkOut()
+        disp.setStreamName("disp")
+        stro.disparity.link(disp.input)
 
         # Spatial Location Calculator
-        slc = pipeline.createSpatialLocationCalculator()
+        slc = self.pipeline.createSpatialLocationCalculator()
         # Allows us to change ROI on the fly
         slc.setWaitForConfigInput(True)
         slc.inputDepth.setBlocking(False)
         slc.inputDepth.setQueueSize(1)
 
-        sdo = pipeline.createXLinkOut()
-        sdo.setStreamName("dpt_out")
+        sdo = self.pipeline.createXLinkOut()
+        sdo.setStreamName("sdo_out")
         sdo.input.setQueueSize(1)
-        sdo.input.setBlocking(False)
+        sdo.input.setBlocking(True)
 
-        scc_in = pipeline.createXLinkIn()
+        scc_in = self.pipeline.createXLinkIn()
         scc_in.setStreamName("scc_in")
 
         # Link left and right monocamera to the stereo depth object
-        left.out.link(dpt.left)
-        right.out.link(dpt.right)
+        left.out.link(stro.left)
+        right.out.link(stro.right)
 
         # Link stereo depth to input into the spatial location calculator
-        dpt.depth.link(slc.inputDepth)
+        stro.depth.link(slc.inputDepth)
 
         slc.out.link(sdo.input)
         scc_in.out.link(slc.inputConfig)
 
+    def create_acc_pipeline(self):
         #### Accelerometer Setup ####
-
-        imu = pipeline.createIMU()
-        imu_out = pipeline.createXLinkOut()
+        imu = self.pipeline.createIMU()
+        imu_out = self.pipeline.createXLinkOut()
         imu_out.setStreamName("imu_out")
 
         imu.enableIMUSensor(dai.IMUSensor.ACCELEROMETER_RAW, 25)
         imu.setMaxBatchReports(1)
         imu.out.link(imu_out.input)
 
+    def create_nn_pipeline(self, manip):
         #### Neural Network Setup ####
         print("Neural networks setup...")
 
         # Palm detection setup
-        pd_nn = pipeline.createNeuralNetwork()
+        pd_nn = self.pipeline.createNeuralNetwork()
         pd_nn.setBlobPath(pathlib.Path(self.PD_BLOB_PATH))
         pd_nn.input.setQueueSize(1)
         pd_nn.input.setBlocking(False)
         manip.out.link(pd_nn.input)
 
-        pd_in = pipeline.createXLinkIn()
+        pd_in = self.pipeline.createXLinkIn()
         pd_in.setStreamName("pd_in")
         pd_in.out.link(pd_nn.input)
 
-        pd_out = pipeline.createXLinkOut()
+        pd_out = self.pipeline.createXLinkOut()
         pd_out.setStreamName("pd_out")
         pd_nn.out.link(pd_out.input)
 
         # Landmark detection setup
-        lm_nn = pipeline.createNeuralNetwork()
+        lm_nn = self.pipeline.createNeuralNetwork()
         lm_nn.setBlobPath(pathlib.Path(self.LM_BLOB_PATH))
         lm_nn.setNumInferenceThreads(2)
 
-        lm_in = pipeline.createXLinkIn()
+        lm_in = self.pipeline.createXLinkIn()
         lm_in.setStreamName("lm_in")
         lm_in.out.link(lm_nn.input)
 
-        lm_out = pipeline.createXLinkOut()
+        lm_out = self.pipeline.createXLinkOut()
         lm_out.setStreamName("lm_out")
         lm_nn.out.link(lm_out.input)
 
+    def create_pipeline(self):
+        self.pipeline.setOpenVINOVersion(version=dai.OpenVINO.Version.VERSION_2021_4)
+
+        print("Sensor setup....")
+        rgb, manip = self.create_rgb_pipeline()
+        self.create_dpt_pipeline(rgb)
+        self.create_acc_pipeline()
+        self.create_nn_pipeline(manip)
+
         print("Pipeline creation successful.")
-        return pipeline
 
     def get_rgb_frame(self):
         return self.rgb_out.get().getCvFrame()
+
+    def get_dpt_frame(self):
+        return self.dpt_out.get().getFrame()
 
     def get_camera_tilt(self):
         imu_packet = self.imu_out.get().packets[0]
         return np.rad2deg(np.arctan(imu_packet.acceleroMeter.z / (imu_packet.acceleroMeter.y + 1e-8)))
 
-    def get_depth_at_coords(self, coords):
+    def get_depth_at_coords(self, coords, size=None):
+
+        if not size:
+            size = self.DEPTH_REGION_SIZE
 
         conf_datas = []
         for (x, y) in coords:
             rect_center = dai.Point2f(x, y)
-            rect_size = dai.Size2f(self.DEPTH_REGION_SIZE, self.DEPTH_REGION_SIZE)
+            rect_size = dai.Size2f(size, size)
 
             conf_data = dai.SpatialLocationCalculatorConfigData()
             conf_data.depthThresholds.lowerThreshold = 100
@@ -243,56 +287,7 @@ class HandTracker:
         self.scc_in.send(cfg)
 
         # NOTE: Optimal distance is between 40cm and 6m
-        return np.array([loc.spatialCoordinates.z for loc in self.dpt_out.get().getSpatialLocations()])
-
-    def get_detector_plane(self, num_points=512, display=False):
-
-        for _ in range(self.N_RETRIES):
-            # Sample some random 2D points and fetch their corresponding depth
-            coords_2d = np.array([[random.randint(self.DEPTH_REGION_SIZE, self.img_w - self.DEPTH_REGION_SIZE),
-                                   random.randint(self.DEPTH_REGION_SIZE, self.img_h - self.DEPTH_REGION_SIZE)]
-                                  for _ in range(num_points)])
-            depth_values = self.get_depth_at_coords(coords_2d)
-            coords_3d = np.hstack((coords_2d, depth_values.reshape(-1, 1)))
-
-            # Check that the depth has been detected
-            if np.count_nonzero(depth_values) > 50:
-                # Filter out points that have 0 depth
-                coords_3d = coords_3d[coords_3d[:, 2] != 0]
-
-                # Calculate the plane using RANSAC
-                plane = pyransac.Plane()
-                plane_equation, inlier_points = plane.fit(coords_3d, thresh=20, minPoints=num_points // 2)
-
-                if display:
-                    viz_matplotlib(plane_equation, coords_3d, inlier_points)
-
-                self.detector_plane = plane_equation
-                return
-
-        raise DetectorPlaneNotFoundException
-
-    def get_hand_plane(self, display=False):
-        # n_frames x n_keypoints x coordinates
-        planes = {}
-        for key in self.hand_hist.keys():
-            coords_3d = np.array(self.hand_hist[key]).reshape(-1, 3)
-
-            # filter out points with depth not detected
-            coords_3d = coords_3d[coords_3d[:, 2] != 0]
-
-            if coords_3d.size == 0:
-                continue
-
-            plane = pyransac.Plane()
-            plane_equation, inlier_points = plane.fit(coords_3d, thresh=20, minPoints=int(coords_3d.shape[0] * 0.5))
-
-            if display:
-                viz_matplotlib(plane_equation, coords_3d, inlier_points)
-
-            planes[key] = plane_equation
-
-        return planes
+        return np.array([loc.spatialCoordinates.z for loc in self.sdo_out.get().getSpatialLocations()])
 
     def pd_postprocess(self, inference):
         scores = np.array(inference.getLayerFp16("classificators"), dtype=np.float16)  # 896
@@ -334,7 +329,7 @@ class HandTracker:
 
     def xy_to_xyz(self):
         for i, h in enumerate(self.hands):
-            z = np.round(self.get_depth_at_coords(h.landmarks), 0)
+            z = np.round(self.get_depth_at_coords(h.landmarks, 2), 0)
             h.xyz = np.column_stack((h.landmarks, z))
 
     def next_frame(self):
@@ -431,3 +426,34 @@ class HandTracker:
             self.hand_hist[h.label].append(h.xyz)
 
         return frame, self.hands
+
+
+def crop_center(image, new_width, new_height):
+    height, width = image.shape[:2]
+    left = int((width - new_width) / 2)
+    top = int((height - new_height) / 2)
+    right = int((width + new_width) / 2)
+    bottom = int((height + new_height) / 2)
+    return image[top:bottom, left:right]
+
+
+if __name__ == "__main__":
+    import cv2
+
+    ht = HandTracker()
+    while True:
+        frame = ht.get_rgb_frame()
+        dpt = ht.disp.get().getFrame()  # 16:9
+        dispa = ht.disp.get().getFrame()  # 16:9
+
+        right = ht.right.get().getFrame() # 4:3
+        right = crop_center(right, right.shape[1], int(right.shape[1] * 9 / 16))
+        right = cv2.resize(right, (dispa.shape[1], dispa.shape[0]))
+        frame = ht.wls_filter.filter(dispa, right)
+        frame = cv2.applyColorMap(frame.astype(np.uint8), cv2.COLORMAP_HOT)
+        cv2.imshow("rgb", frame)
+        cv2.imshow("disparity", dispa)
+        cv2.imshow("right", right)
+
+        if cv2.waitKey(1) == ord('q'):
+            break

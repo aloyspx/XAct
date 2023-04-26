@@ -27,24 +27,27 @@ def viz_open3d(plane_eq, points):
     o3d.visualization.draw_geometries([pcd, lines, plane])
 
 
-def viz_matplotlib(plane_equation, coords, pts):
+def viz_matplotlib(planes, coords=None, pts=None):
     plt.close('all')
-    # Create a 3D plot
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.set_zlim([-1000, 0])
 
-    # Plot the points
-    if coords:
-        ax.scatter(coords[pts, 0], coords[pts, 1], -coords[pts, 2], c='b', marker='o')
-        outliers = list(set(list(np.arange(len(coords)))).difference(set(list(pts))))
-        ax.scatter(coords[outliers, 0], coords[outliers, 1], -coords[outliers, 2], c='r', marker='x')
+    for azim in [0, 45, 90, 135, 180]:
+        # Create a 3D plot
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.set_zlim([-1000, 0])
+        ax.view_init(elev=0, azim=azim)
 
-    # Plot the plane
-    a, b, c, d = plane_equation
-    xx, yy = np.meshgrid(range(0, 1152), range(0, 648))
-    zz = (-a * xx - b * yy - d) * 1. / c
-    ax.plot_surface(xx, yy, -zz)
+        # Plot the points
+        if coords:
+            ax.scatter(coords[pts, 0], coords[pts, 1], -coords[pts, 2], c='b', marker='o')
+            outliers = list(set(list(np.arange(len(coords)))).difference(set(list(pts))))
+            ax.scatter(coords[outliers, 0], coords[outliers, 1], -coords[outliers, 2], c='r', marker='x')
 
-    # Show the plot
-    plt.show()
+        for plane in planes:
+            a, b, c, d = plane
+            xx, yy = np.meshgrid(range(0, 1152), range(0, 648))
+            zz = (-a * xx - b * yy - d) * 1. / c
+            ax.plot_surface(xx, yy, -zz)
+
+        # Show the plot
+        plt.show()
