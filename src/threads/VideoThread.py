@@ -14,7 +14,7 @@ class VideoThread(QThread):
         self._run_flag = True
         self.tracker = tracker
 
-    def draw(self, frame, hands):
+    def draw(self, frame, hands=None):
         frame = cv2.putText(frame, f"FPS: {self.tracker.fps.get()}:",
                             (0, 25), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
         if hands:
@@ -36,7 +36,7 @@ class VideoThread(QThread):
             frame, hands = self.tracker.next_frame()
 
             if frame.any():
-                frame = self.draw(frame, hands)
+                frame = self.draw(frame)
                 self.change_pixmap_signal.emit(frame)
 
     def stop(self):

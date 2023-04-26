@@ -77,8 +77,8 @@ class App:
         self.video_thread.start()
 
         # Calculates information about positioning in the background
-        self.hand_plane_thread = PlaneCalculatorThread(self.tracker)
-        self.hand_plane_thread.start()
+        # self.hand_plane_thread = PlaneCalculatorThread(self.tracker)
+        # self.hand_plane_thread.start()
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
