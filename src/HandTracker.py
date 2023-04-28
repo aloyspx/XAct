@@ -1,17 +1,24 @@
 """Heavily inspired from depthai example"""
-from typing import Tuple, Union, Any, List
-
+import time
+import random
 import cv2
 import pathlib
 import depthai as dai
 import numpy as np
+import open3d as o3d
+import pyransac3d as pyransac
+from typing import Union, Any, List, Dict
 
 from collections import deque
 from threading import Lock
 
 import src.MediapipeUtils as MpU
+from src.Constants import PROXIMAL_LINKS, POS_LANDMARK_DEPTH
+from src.CustomExceptions import DetectorPlaneNotFoundException, USBSpeedException
 from src.FPS import FPS
+from src.Filters import LandmarksSmoothingFilter
 from src.MediapipeUtils import HandRegion
+from src.Visualisers import draw, plot_lines_op3d
 
 
 class HandTracker:
@@ -29,7 +36,11 @@ class HandTracker:
     PALM_DETECTION_INP_LENGTH = 128
     LANDMARK_INPUT_LENGTH = 224
 
-    def __init__(self, solo: bool = False) -> None:
+    def __init__(self, solo: bool = False, mode : str = "depth_only") -> None:
+
+        assert mode in ["depth_only", "mp3d_mixed"]
+        self.mp3d_mixed = (mode == "mp3d_mixed")
+        self.depth_only = not self.mp3d_mixed
 
         super().__init__()
 
@@ -53,13 +64,34 @@ class HandTracker:
         self.pad_w: int = 0
 
         # better than queue as it'll remove the last element if the size exceeds the max len
-        self.hand_hist = {"left": deque(maxlen=10), "right": deque(maxlen=10)}
+        if self.depth_only:
+            self.hand_hist: Dict[str, deque] = {"left": deque(maxlen=50), "right": deque(maxlen=50)}
+
+        self.filter = [
+            LandmarksSmoothingFilter(min_cutoff=1, beta=20, derivate_cutoff=10, disable_value_scaling=True)
+            for _ in range(1 if solo else 2)
+        ]
+
 
         # FPS
         self.fps = FPS()
 
-        # Pipeline
+        # Device
         self.device = dai.Device()
+        self.device.setLogLevel(dai.LogLevel.WARN)
+        self.device.setLogOutputLevel(dai.LogLevel.WARN)
+        self.device_calibration_info = self.device.readCalibration()
+
+        if int(self.device.getUsbSpeed()) < int(dai.UsbSpeed.SUPER):
+            print(f"USB speed: {self.device.getUsbSpeed()} is too slow. Please check USB.")
+            raise USBSpeedException
+
+        # Depth variables
+        self.baseline = 7.5
+        self.focal_length_left = self.device_calibration_info.getCameraIntrinsics(dai.CameraBoardSocket.LEFT)[0][0]
+        self.max_z = 200  # cm
+
+        # Pipeline
         self.pipeline = dai.Pipeline()
         self.create_pipeline()
         self.device.startPipeline(self.pipeline)
@@ -78,13 +110,15 @@ class HandTracker:
         self.imu_out = self.device.getOutputQueue(name="imu_out", maxSize=1, blocking=False)
 
         # Neural networks
-        self.pd_out = self.device.getOutputQueue(name="palm_detection_out", maxSize=4, blocking=True)
+        self.palm_detection_out = self.device.getOutputQueue(name="palm_detection_out", maxSize=4, blocking=True)
+        self.landmark_in = self.device.getInputQueue(name="landmark_in")
+        self.landmark_out = self.device.getOutputQueue(name="landmark_out", maxSize=4, blocking=True)
 
-        self.lm_in = self.device.getInputQueue(name="landmark_in")
-        self.lm_out = self.device.getOutputQueue(name="landmark_out", maxSize=4, blocking=True)
-
-        # Synchronization of color_camera and spatial_data queue packets
+        # Synchronization of spatial_calc_config_in and spatial_data_out queue packets
         self._mutex = Lock()
+
+        # Detector plane
+        self.detector_plane = None
 
     def create_color_camera(self) -> (dai.node.ColorCamera, dai.node.ImageManip):
         # Color camera
@@ -119,13 +153,13 @@ class HandTracker:
         color_camera_out.input.setBlocking(False)
         color_camera.video.link(color_camera_out.input)
 
+        # Set camera to fixed focus for RGB/depth alignment
+        lens_position = self.device_calibration_info.getLensPosition(dai.CameraBoardSocket.RGB)
+        color_camera.initialControl.setManualFocus(lens_position)
+
         return color_camera, image_manip_palm_detection
 
-    def create_stereo_depth(self, rgb: dai.node.ColorCamera) -> None:
-        # Set camera to fixed focus for RGB/depth alignment
-        calib = self.device.readCalibration()
-        calib_pos = calib.getLensPosition(dai.CameraBoardSocket.RGB)
-        rgb.initialControl.setManualFocus(calib_pos)
+    def create_stereo_depth(self) -> None:
 
         # Left MonoCamera
         left_monocamera = self.pipeline.createMonoCamera()
@@ -141,14 +175,31 @@ class HandTracker:
 
         # Stereo Camera
         stereo_depth_camera = self.pipeline.createStereoDepth()
-        stereo_depth_camera.initialConfig.setConfidenceThreshold(255)
         stereo_depth_camera.setRectifyEdgeFillColor(0)
-        stereo_depth_camera.setExtendedDisparity(True)
-        stereo_depth_camera.setSubpixel(False)
+        stereo_depth_camera.setDefaultProfilePreset(dai.node.StereoDepth.PresetMode.HIGH_ACCURACY)
+
         # Must be true for RGB/depth alignment, false would be better for occlusion
         stereo_depth_camera.setLeftRightCheck(True)
         stereo_depth_camera.setDepthAlign(dai.CameraBoardSocket.RGB)
 
+        # Parameters for better short range depth
+        stereo_depth_camera.setExtendedDisparity(False)
+        stereo_depth_camera.setSubpixel(True)
+        stereo_depth_camera.setSubpixelFractionalBits(3)
+        # stereo_depth_camera.initialConfig.setDisparityShift(self.calculate_disparity_shift())
+
+        # Post-processing depth map configuration
+        if self.depth_only:
+            # stereo_depth_camera.initialConfig.setBilateralFilterSigma(25)
+            config = stereo_depth_camera.initialConfig.get()
+            config.postProcessing.speckleFilter.enable = True
+            config.postProcessing.speckleFilter.speckleRange = 50
+            config.postProcessing.thresholdFilter.minRange = 300  # mm
+            config.postProcessing.thresholdFilter.maxRange = self.max_z * 10  # mm
+            config.postProcessing.spatialFilter.enable = True
+            config.postProcessing.temporalFilter.enable = True
+            config.postProcessing.decimationFilter.decimationFactor = 1
+            stereo_depth_camera.initialConfig.set(config)
 
         # Link left and right monocamera to stereo depth camera
         left_monocamera.out.link(stereo_depth_camera.left)
@@ -224,17 +275,51 @@ class HandTracker:
         landmark_out.setStreamName("landmark_out")
         landmark_nn.out.link(landmark_out.input)
 
+    def create_edge_detector(self, color_camera: dai.node.ColorCamera, kernel_type: str = "sobel") -> None:
+        # Create edge detector that takes color camera output
+        edge_detector_color = self.pipeline.createEdgeDetector()
+        edge_detector_color.setMaxOutputFrameSize(color_camera.getVideoWidth() * color_camera.getVideoHeight())
+        color_camera.video.link(edge_detector_color.inputImage)
+
+        if kernel_type == "sobel":
+            horizontal_kernel = [[1, 0, -1],
+                                 [2, 0, -2],
+                                 [1, 0, -1]]
+            vertical_kernel = [[1, 2, 1],
+                               [0, 0, 0],
+                               [-1, -2, -1]]
+
+        elif kernel_type == "prewitt":
+            horizontal_kernel = [[-1, 0, 1],
+                                 [-1, 0, 1],
+                                 [-1, 0, 1]]
+            vertical_kernel = [[1, 1, 1],
+                               [0, 0, 0],
+                               [-1, -1, -1]]
+        else:
+            raise NotImplementedError
+
+        edge_detector_color.initialConfig.setSobelFilterKernels(horizontal_kernel, vertical_kernel)
+
+        # Create a link between the edge detector output and an output node
+        edge_detector_color_out = self.pipeline.createXLinkOut()
+        edge_detector_color_out.setStreamName("edge_detector_color_out")
+        edge_detector_color.outputImage.link(edge_detector_color_out.input)
+
     def create_pipeline(self) -> None:
         self.pipeline.setOpenVINOVersion(version=dai.OpenVINO.Version.VERSION_2021_4)
 
         print("Sensor setup....")
         color_camera, image_manip_palm_detection = self.create_color_camera()
-        self.create_stereo_depth(color_camera)
+        self.create_stereo_depth()
         self.create_accelerometer()
-
         self.create_nn(image_manip_palm_detection)
+        # self.create_edge_detector(color_camera)
 
         print("Pipeline creation successful.")
+
+    def calculate_disparity_shift(self) -> int:
+        return int(self.focal_length_left * self.baseline / self.max_z)
 
     def get_color_frame(self) -> np.ndarray:
         return self.color_camera_out.get().getCvFrame()
@@ -242,11 +327,14 @@ class HandTracker:
     def get_depth_frame(self) -> np.ndarray:
         return self.stereo_depth_out.get().getFrame()
 
+    def get_edge_detection(self) -> np.ndarray:
+        return self.edge_detector_color.get().getFrame()
+
     def get_camera_tilt(self) -> float:
         imu_packet = self.imu_out.get().packets[0]
         return np.rad2deg(np.arctan(imu_packet.acceleroMeter.z / (imu_packet.acceleroMeter.y + 1e-8)))
 
-    def get_depth_at_coords(self, coords: Tuple[int, ...], size: int = None) -> np.ndarray:
+    def get_depth_at_coords(self, coords: np.ndarray, size: int = None) -> np.ndarray:
 
         if not size:
             size = self.DEPTH_REGION_SIZE
@@ -258,8 +346,8 @@ class HandTracker:
             rect_size = dai.Size2f(size, size)
 
             conf_data = dai.SpatialLocationCalculatorConfigData()
-            conf_data.depthThresholds.lowerThreshold = 100
-            conf_data.depthThresholds.upperThreshold = 10000
+            conf_data.depthThresholds.lowerThreshold = 300  # mm
+            conf_data.depthThresholds.upperThreshold = 2000  # mm
             conf_data.roi = dai.Rect(rect_center, rect_size)
             conf_datas.append(conf_data)
 
@@ -267,11 +355,11 @@ class HandTracker:
         cfg = dai.SpatialLocationCalculatorConfig()
         cfg.setROIs(conf_datas)
 
-        # Hack to avoid synchronization issue if detector and hand spatial information are queried at the same time
+        # Hack to avoid synchronization issue if detector and hand depth functions make a call at the same time
         with self._mutex:
-            self.spatial_location_calculator_config_in.send(cfg)
 
             # Fetch and return all queried depth coordinates [NOTE: Optimal distance is between 40cm and 6m]
+            self.spatial_location_calculator_config_in.send(cfg)
             return np.array([loc.spatialCoordinates.z for loc in self.spatial_data_out.get().getSpatialLocations()])
 
     def pd_postprocess(self, inference: dai.NNData) -> List[HandRegion]:
@@ -320,11 +408,27 @@ class HandTracker:
             mat = cv2.getAffineTransform(src, dst)
             lm_xy = np.expand_dims(hand.norm_landmarks[:, :2], axis=0)
             hand.landmarks = np.squeeze(cv2.transform(lm_xy, mat)).astype(np.int32)
+            hand.world_landmarks = np.array(inference.getLayerFp16("Identity_3_dense/BiasAdd/Add")
+                                            ).reshape(-1, 3) * 1000.0
 
     def xy_to_xyz(self) -> None:
         for i, h in enumerate(self.hands):
-            z = np.round(self.get_depth_at_coords(h.landmarks, size=2), 0)
-            h.xyz = np.column_stack((h.landmarks, z))
+            if self.depth_only:
+                # SUPER MEGA HACK: instead of passing coordinates at extremities, we calculate depth half way
+                coords = [np.mean(h.landmarks[line], axis=0).astype(int) for line in POS_LANDMARK_DEPTH]
+                z = self.get_depth_at_coords(coords, size=3)
+                h.xyz = np.column_stack((h.landmarks, z)).astype(int)
+
+            elif self.mp3d_mixed:
+                # Get depth at wrist
+                wrist_xyz = np.column_stack(([h.landmarks[0]], self.get_depth_at_coords([h.landmarks[0]])))[0]
+                wrist_xyz[1] = -wrist_xyz[1]
+                points = h.get_rotated_world_landmarks()
+                points = points + wrist_xyz - points[0]
+                h.xyz = self.filter[i].apply(points)
+
+            else:
+                raise NotImplementedError
 
     def next_frame(self) -> (np.ndarray, List[HandRegion]):
         self.fps.update()
@@ -342,7 +446,7 @@ class HandTracker:
         if self.use_previous_landmark:
             self.hands = self.hands_from_landmarks
         else:
-            inference = self.pd_out.get()
+            inference = self.palm_detection_out.get()
             hands = self.pd_postprocess(inference)
 
             if not self.solo and self.nb_hands_in_previous_frame == 1 and len(hands) <= 1:
@@ -357,10 +461,10 @@ class HandTracker:
             img_hand = cv2.resize(img_hand, (self.LANDMARK_INPUT_LENGTH, self.LANDMARK_INPUT_LENGTH)).transpose(2, 0, 1)
             nn_data = dai.NNData()
             nn_data.setLayer("input_1", img_hand)
-            self.lm_in.send(nn_data)
+            self.landmark_in.send(nn_data)
 
         for i, h in enumerate(self.hands):
-            inference: dai.NNData = self.lm_out.get()
+            inference: dai.NNData = self.landmark_out.get()
             self.lm_postprocess(h, inference)
 
         # Keep only hands with a score above threshold
@@ -417,26 +521,150 @@ class HandTracker:
                     hand.rect_points[i][0] -= self.pad_w
             hand.label = "right" if hand.handedness > 0.5 else "left"
 
-        # Get depth map information for each landmark detected
+        # Get depth coordinate for each landmark detected
         self.xy_to_xyz()
-
-        # Record historical information about the last 10 hands to smooth over.
-        for h in self.hands:
-            self.hand_hist[h.label].append(h.xyz)
 
         return frame, self.hands
 
+    def get_detector_plane(self, num_points: int = 512) -> None:
+        # Retry 10 times to find detector plane
+        for _ in range(10):
+
+            # Sample some random 2D points and fetch their corresponding depth
+            coords_2d = np.array([[random.randint(self.DEPTH_REGION_SIZE,
+                                                  self.img_w - self.DEPTH_REGION_SIZE),
+                                   random.randint(self.DEPTH_REGION_SIZE,
+                                                  self.img_h - self.DEPTH_REGION_SIZE)]
+                                  for _ in range(num_points)])
+
+            depth_values = self.get_depth_at_coords(coords_2d)
+            coords_3d = np.hstack((coords_2d, depth_values.reshape(-1, 1)))
+
+            # Check that the depth has been detected
+            if np.count_nonzero(depth_values) > num_points // 4:
+
+                # Filter out points that have 0 depth
+                coords_3d = coords_3d[coords_3d[:, 2] != 0]
+
+                # Calculate the plane using RANSAC
+                plane = pyransac.Plane()
+                plane_equation, inlier_points = plane.fit(coords_3d, thresh=20, minPoints=num_points // 2,
+                                                          maxIteration=50)
+
+                # For simplicity, make sure that the c in the normal vector always has the same sense
+                if plane_equation[-2] < 0:
+                    plane_equation[-2] = -plane_equation[-2]
+
+                self.detector_plane = np.round(plane_equation, 1)
+                # self.max_z = np.ceil(max(coords_3d[inlier_points][:, 2]) / 100) * 100
+                return
+
+            else:
+                time.sleep(1)
+
+        raise DetectorPlaneNotFoundException
+
+    def get_hand_plane(self) -> Dict[str, Any]:
+        planes = {}
+        for key in self.hand_hist.keys():
+
+            hist = self.hand_hist[key]
+
+            if len(hist) == 0:
+                continue
+
+            # filter out points with depth not detected and calculate mean with remaining coordinate history
+            masked_arr = np.ma.masked_equal(hist, 0)
+            coords_3d = np.mean(masked_arr, axis=0)
+
+            # find the best fitting plane with ransac
+            plane = pyransac.Plane()
+            plane_equation, inlier_points = plane.fit(coords_3d, thresh=25, minPoints=int(coords_3d.shape[0] * 0.75),
+                                                      maxIteration=50)
+
+            # For simplicity, make sure that the c in the normal vector always has the same sense
+            if plane_equation[-2] < 0:
+                plane_equation[-2] = -plane_equation[-2]
+
+            planes[key] = plane_equation
+
+        return planes
+
+    def exit(self) -> None:
+        self.device.close()
+
 
 if __name__ == "__main__":
-    import cv2
+    ht = HandTracker(solo=True, mode="mp3d_mixed")
+    color, hands = ht.next_frame()
+    points = hands[0].xyz
 
-    ht = HandTracker()
+    # line_set = o3d.geometry.LineSet()
+    # line_set.points = o3d.utility.Vector3dVector(points)
+    # line_set.lines = o3d.utility.Vector2iVector(PROXIMAL_LINKS)
+    #
+    # # Create a list of spheres
+    # spheres = []
+    # for point in points:
+    #     sphere = o3d.geometry.TriangleMesh.create_sphere(radius=0.5)
+    #     sphere.translate(point)
+    #     spheres.append(sphere)
+    #
+    # # Visualize the LineSet and the spheres
+    # o3d.visualization.draw_geometries([line_set, *spheres, cam])
+    #
+    # # Create a LineSet object
+    line_set = o3d.geometry.LineSet()
+    line_set.points = o3d.utility.Vector3dVector(points)
+    line_set.lines = o3d.utility.Vector2iVector(PROXIMAL_LINKS)
+
+    # Create camera
+    cam = o3d.geometry.TriangleMesh.create_arrow(cylinder_radius=5, cone_radius=7.5, cylinder_height=15,
+                                                 cone_height=10)
+    cam.paint_uniform_color([0.2, 0.7, 1])
+    cam.compute_vertex_normals()
+
+    # Create a list of spheres
+
+    spheres = []
+    for point in points:
+        sphere = o3d.geometry.TriangleMesh.create_sphere(radius=1)
+        sphere.translate(point)
+        spheres.append(sphere)
+
+    # Create a Visualizer object
+    vis = o3d.visualization.Visualizer()
+    vis.create_window()
+
+    # Add the geometries to the visualizer
+    vis.add_geometry(line_set)
+    vis.add_geometry(cam)
+    for sphere in spheres:
+        vis.add_geometry(sphere)
+
     while True:
-        frame = ht.get_depth_frame()
-        frame = cv2.applyColorMap(frame.astype(np.uint8), cv2.COLORMAP_HOT)
-        cv2.imshow("depth", frame)
+        color, hands = ht.next_frame()
 
-        if cv2.waitKey(1) == ord('q'):
-            break
+        if hands:
+            plot_lines_op3d(vis, hands[0].xyz, line_set, spheres)
 
 
+        # # color = draw(color, ht.fps, hands)
+        # # cv2.imshow("color", color)
+        #
+        # depth = ht.get_depth_frame()
+        # # depth = cv2.copyMakeBorder(depth, 0, 0, 0, 20, cv2.BORDER_CONSTANT)[:, 20:]
+        # depth = cv2.applyColorMap(depth.astype(np.uint8), cv2.COLORMAP_HOT)
+        # # depth = draw(depth, ht.fps, hands)
+        # cv2.imshow("depth", depth)
+        #
+        # edge = ht.get_edge_detection()
+        # # cv2.imshow("edge", edge)
+        #
+        # # edge = cv2.cvtColor(edge, cv2.COLOR_GRAY2BGR)
+        # # edge = draw(edge, ht.fps, hands, depth=True)
+        # # mix = cv2.addWeighted(depth, 0.3, edge, 0.7, 0)
+        # # cv2.imshow("mix", mix)
+        #
+        # if cv2.waitKey(1) == ord('q'):
+        #     break

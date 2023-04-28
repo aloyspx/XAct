@@ -1,30 +1,13 @@
-import numpy as np
+from typing import List
+
+import cv2
 import open3d as o3d
+import numpy as np
 from matplotlib import pyplot as plt
 
-from src.Constants import LINES_HAND
-
-
-def viz_open3d(plane_eq, points):
-    # Create a point cloud from the list of points
-    pcd = o3d.geometry.PointCloud()
-    pcd.points = o3d.utility.Vector3dVector(points)
-
-    # Create lines from the line indices
-    lines = o3d.geometry.LineSet()
-    lines.points = o3d.utility.Vector3dVector(points)
-    lines.lines = o3d.utility.Vector2iVector(LINES_HAND)
-
-    # Create a mesh plane from the plane equation
-    a, b, c, d = plane_eq
-    plane = o3d.geometry.TriangleMesh.create_box(width=1, height=1, depth=0.1)
-    plane.compute_vertex_normals()
-    R = o3d.geometry.get_rotation_matrix_from_xyz((np.arcsin(c), 0, 0))
-    plane.rotate(R)
-    plane.translate((0, 0, d))
-
-    # Visualize the point cloud, lines and the plane
-    o3d.visualization.draw_geometries([pcd, lines, plane])
+from src.Constants import PROXIMAL_LINKS
+from src.FPS import FPS
+from src.MediapipeUtils import HandRegion
 
 
 def viz_matplotlib(planes, coords=None, pts=None):
@@ -51,3 +34,44 @@ def viz_matplotlib(planes, coords=None, pts=None):
 
         # Show the plot
         plt.show()
+
+
+def plot_lines_op3d(vis, points, line_set, spheres):
+    # Update the LineSet object
+    line_set.points = o3d.utility.Vector3dVector(points)
+    vis.update_geometry(line_set)
+
+    # Update the spheres
+    for j, sphere in enumerate(spheres):
+        sphere.translate(points[j] - sphere.get_center())
+        vis.update_geometry(sphere)
+
+    # Render and capture events
+    vis.poll_events()
+    vis.update_renderer()
+
+
+def draw(frame: np.ndarray, fps: FPS, hands: List[HandRegion] = None, keypoints: bool = False,
+         depth: bool = False) -> np.ndarray:
+    frame = fps.draw(frame, (0, 25), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+
+    if hands:
+        for hand in hands:
+            for i, xyz in enumerate(hand.xyz):
+                xy = xyz[:-1]
+                z = xyz[-1]
+                frame = cv2.circle(frame, xy, radius=1, color=(0, 0, 255), thickness=10)
+
+                if keypoints:
+                    frame = cv2.putText(frame, str(i), xy + 10, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1,
+                                        cv2.LINE_AA)
+
+                if depth:
+                    frame = cv2.putText(frame, f"[{z}]", xy + 20, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2,
+                                        cv2.LINE_AA)
+
+            # for line in LINES_HAND:
+            #     frame = cv2.line(frame, hand.landmarks[line[0]], hand.landmarks[line[1]], color=(0, 0, 255),
+            #                      thickness=2)
+
+    return frame
