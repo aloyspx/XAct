@@ -1,11 +1,9 @@
-from typing import List
-
 import cv2
 import numpy as np
 from PyQt5.QtCore import pyqtSignal, QThread
 
 from src.HandTracker import HandTracker
-from src.Visualisers import draw
+from src.utils.Visualisers import draw
 
 
 class VideoThread(QThread):

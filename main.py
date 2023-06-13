@@ -6,9 +6,8 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPixmap
 
-from src.Constants import PROTOCOLS
+from src.utils.Constants import PROTOCOLS
 from src.HandTracker import HandTracker
-from src.threads.PlaneCalculatorThread import PlaneCalculatorThread
 from src.threads.VideoThread import VideoThread
 
 
@@ -98,6 +97,7 @@ class App:
 
     def on_protocolDropdown_changed(self, idx):
         print("Protocol changed to:", PROTOCOLS[idx])
+
 
 
 if __name__ == "__main__":

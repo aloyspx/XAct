@@ -9,21 +9,20 @@ class BaseProtocol:
         self.protocol_name = protocol_name
         self.parameters = self.create_default_parameters()
 
-    def get_parameters(self):
-        return self.parameters
-
     @staticmethod
     def create_default_parameters():
-        hand_keypoints = ['Wrist', 'Thumb_MCP', 'Thumb_IP', 'Thumb_Tip', 'Index_MCP', 'Index_PIP', 'Index_DIP',
+        hand_keypoints = ['Wrist', 'CMC', 'Thumb_MCP', 'Thumb_IP', 'Thumb_Tip', 'Index_MCP', 'Index_PIP', 'Index_DIP',
                           'Index_Tip', 'Middle_MCP', 'Middle_PIP', 'Middle_DIP', 'Middle_Tip', 'Ring_MCP', 'Ring_PIP',
                           'Ring_DIP', 'Ring_Tip', 'Pinky_MCP', 'Pinky_PIP', 'Pinky_DIP', 'Pinky_Tip']
 
         left_hand = {key: None for key in hand_keypoints}
         right_hand = {key: None for key in hand_keypoints}
+        detector_plane = [0., 0., 0., 0.]
 
         return {
             "left_hand": left_hand,
-            "right_hand": right_hand
+            "right_hand": right_hand,
+            "detector_plane": detector_plane
         }
 
     def key_exists(self, keys):
@@ -35,7 +34,14 @@ class BaseProtocol:
                 return False
         return True
 
-    def set_parameter(self, hand_hist: np.ndarray, key: str):
+    def get_parameters(self):
+        return self.parameters
+
+    def set_detector_parameter(self, detector_plane):
+        assert len(detector_plane) == 4
+        self.parameters["detector_plane"] = detector_plane
+
+    def set_hand_parameter(self, hand_hist: np.ndarray, key: str):
 
         hist = hand_hist[key]
 
@@ -52,9 +58,5 @@ class BaseProtocol:
         for coord, coord_key in zip(coords_3d, self.parameters.keys()):
             self.parameters[key][coord_key] = coord
 
-
-if __name__ == "__main__":
-    protocol = BaseProtocol("Test")
-    protocol.set_parameter()
-
-
+    def check_constraints(self):
+        pass

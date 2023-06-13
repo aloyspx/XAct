@@ -11,12 +11,12 @@ from typing import Union, Any, List, Dict
 from collections import deque
 from threading import Lock
 
-import src.MediapipeUtils as MpU
-from src.Constants import PROXIMAL_LINKS, POS_LANDMARK_DEPTH
-from src.CustomExceptions import DetectorPlaneNotFoundException, USBSpeedException
-from src.FPS import FPS
-from src.Filters import LandmarksSmoothingFilter
-from src.MediapipeUtils import HandRegion
+import src.utils.MediapipeUtils as MpU
+from src.utils.Constants import POS_LANDMARK_DEPTH
+from src.utils.CustomExceptions import DetectorPlaneNotFoundException, USBSpeedException
+from src.utils.FPS import FPS
+from src.utils.Filters import LandmarksSmoothingFilter
+from src.utils.MediapipeUtils import HandRegion
 # from src.Visualisers import draw, plot_lines_op3d, viz_matplotlib
 
 

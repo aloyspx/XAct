@@ -5,9 +5,8 @@ import cv2
 import numpy as np
 from matplotlib import pyplot as plt
 
-from src.Constants import PROXIMAL_LINKS
-from src.FPS import FPS
-from src.MediapipeUtils import HandRegion
+from src.utils.FPS import FPS
+from src.utils.MediapipeUtils import HandRegion
 
 
 def viz_matplotlib(planes, coords=None, pts=None):
