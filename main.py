@@ -6,6 +6,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPixmap
 
+from src.Constants import PROTOCOLS
 from src.HandTracker import HandTracker
 from src.threads.PlaneCalculatorThread import PlaneCalculatorThread
 from src.threads.VideoThread import VideoThread
@@ -27,16 +28,9 @@ class App:
         self.viewer.setObjectName("viewer")
 
         self.calibrateButton = QtWidgets.QPushButton(self.central_widget)
-        self.calibrateButton.setGeometry(QtCore.QRect(210, 470, 121, 31))
+        self.calibrateButton.setGeometry(QtCore.QRect(350, 470, 121, 31))
         self.calibrateButton.setObjectName("calibrateButton")
-
-        self.viewButton = QtWidgets.QPushButton(self.central_widget)
-        self.viewButton.setGeometry(QtCore.QRect(350, 470, 121, 31))
-        self.viewButton.setObjectName("viewButton")
-
-        self.historyButton = QtWidgets.QPushButton(self.central_widget)
-        self.historyButton.setGeometry(QtCore.QRect(490, 470, 121, 31))
-        self.historyButton.setObjectName("historyButton")
+        self.calibrateButton.clicked.connect(self.on_calibrateButton_clicked)
 
         self.led = QtWidgets.QLabel(self.central_widget)
         self.led.setGeometry(QtCore.QRect(820, 10, 25, 25))
@@ -52,7 +46,8 @@ class App:
         self.protocolDropdown = QtWidgets.QComboBox(self.central_widget)
         self.protocolDropdown.setGeometry(QtCore.QRect(820, 40, 195, 41))
         self.protocolDropdown.setObjectName("protocolDropdown")
-        self.protocolDropdown.addItems(["No Protocol", "Hand PA View", "Hand Oblique View", "Hand Lateral View"])
+        self.protocolDropdown.addItems(PROTOCOLS)
+        self.protocolDropdown.currentIndexChanged.connect(self.on_protocolDropdown_changed)
         main_window.setCentralWidget(self.central_widget)
 
         self.menubar = QtWidgets.QMenuBar(main_window)
@@ -78,17 +73,11 @@ class App:
         self.video_thread.change_pixmap_signal.connect(self.update_image)
         self.video_thread.start()
 
-        # Calculates information about positioning in the background
-        # self.hand_plane_thread = PlaneCalculatorThread(self.tracker)
-        # self.hand_plane_thread.start()
-
     def retranslateUi(self, main_window) -> None:
         _translate = QtCore.QCoreApplication.translate
         main_window.setWindowTitle(_translate("MainWindow", "MainWindow"))
         self.viewer.setText(_translate("MainWindow", "Viewer"))
         self.calibrateButton.setText(_translate("MainWindow", "Calibrate"))
-        self.viewButton.setText(_translate("MainWindow", "Change View"))
-        self.historyButton.setText(_translate("MainWindow", "View History"))
 
     def update_image(self, cv_img: np.ndarray) -> None:
         """Updates the image_label with a new opencv image"""
@@ -103,6 +92,12 @@ class App:
         convert_to_qt_format = QtGui.QImage(rgb_image.data, w, h, bytes_per_line, QtGui.QImage.Format_RGB888)
         p = convert_to_qt_format.scaled(self.v_w, self.v_h, Qt.KeepAspectRatio)
         return QtGui.QPixmap.fromImage(p)
+
+    def on_calibrateButton_clicked(self):
+        self.tracker.get_detector_plane()
+
+    def on_protocolDropdown_changed(self, idx):
+        print("Protocol changed to:", PROTOCOLS[idx])
 
 
 if __name__ == "__main__":

@@ -5,7 +5,6 @@ import cv2
 import pathlib
 import depthai as dai
 import numpy as np
-import open3d as o3d
 import pyransac3d as pyransac
 from typing import Union, Any, List, Dict
 
@@ -18,7 +17,7 @@ from src.CustomExceptions import DetectorPlaneNotFoundException, USBSpeedExcepti
 from src.FPS import FPS
 from src.Filters import LandmarksSmoothingFilter
 from src.MediapipeUtils import HandRegion
-from src.Visualisers import draw, plot_lines_op3d
+# from src.Visualisers import draw, plot_lines_op3d, viz_matplotlib
 
 
 class HandTracker:
@@ -36,7 +35,7 @@ class HandTracker:
     PALM_DETECTION_INP_LENGTH = 128
     LANDMARK_INPUT_LENGTH = 224
 
-    def __init__(self, solo: bool = False, mode : str = "depth_only") -> None:
+    def __init__(self, solo: bool = False, mode: str = "depth_only") -> None:
 
         assert mode in ["depth_only", "mp3d_mixed"]
         self.mp3d_mixed = (mode == "mp3d_mixed")
@@ -65,19 +64,21 @@ class HandTracker:
 
         # better than queue as it'll remove the last element if the size exceeds the max len
         if self.depth_only:
-            self.hand_hist: Dict[str, deque] = {"left": deque(maxlen=50), "right": deque(maxlen=50)}
+            self.hand_hist: Dict[str, deque] = {"left": deque(maxlen=self.INTERNAL_FPS),
+                                                "right": deque(maxlen=self.INTERNAL_FPS)}
 
-        self.filter = [
-            LandmarksSmoothingFilter(min_cutoff=1, beta=20, derivate_cutoff=10, disable_value_scaling=True)
-            for _ in range(1 if solo else 2)
-        ]
-
+        else:
+            self.filter = [
+                LandmarksSmoothingFilter(min_cutoff=1, beta=20, derivate_cutoff=10, disable_value_scaling=True)
+                for _ in range(1 if solo else 2)
+            ]
 
         # FPS
         self.fps = FPS()
 
         # Device
         self.device = dai.Device()
+        print(self.device.getAllAvailableDevices())
         self.device.setLogLevel(dai.LogLevel.WARN)
         self.device.setLogOutputLevel(dai.LogLevel.WARN)
         self.device_calibration_info = self.device.readCalibration()
@@ -116,9 +117,6 @@ class HandTracker:
 
         # Synchronization of spatial_calc_config_in and spatial_data_out queue packets
         self._mutex = Lock()
-
-        # Detector plane
-        self.detector_plane = None
 
     def create_color_camera(self) -> (dai.node.ColorCamera, dai.node.ImageManip):
         # Color camera
@@ -164,39 +162,38 @@ class HandTracker:
         # Left MonoCamera
         left_monocamera = self.pipeline.createMonoCamera()
         left_monocamera.setBoardSocket(dai.CameraBoardSocket.LEFT)
-        left_monocamera.setResolution(dai.MonoCameraProperties.SensorResolution.THE_480_P)
+        left_monocamera.setResolution(dai.MonoCameraProperties.SensorResolution.THE_400_P)
         left_monocamera.setFps(self.INTERNAL_FPS)
 
         # Right MonoCamera
         right_monocamera = self.pipeline.createMonoCamera()
         right_monocamera.setBoardSocket(dai.CameraBoardSocket.RIGHT)
-        right_monocamera.setResolution(dai.MonoCameraProperties.SensorResolution.THE_480_P)
+        right_monocamera.setResolution(dai.MonoCameraProperties.SensorResolution.THE_400_P)
         right_monocamera.setFps(self.INTERNAL_FPS)
 
         # Stereo Camera
         stereo_depth_camera = self.pipeline.createStereoDepth()
         stereo_depth_camera.setRectifyEdgeFillColor(0)
-        stereo_depth_camera.setDefaultProfilePreset(dai.node.StereoDepth.PresetMode.HIGH_ACCURACY)
+        stereo_depth_camera.setDefaultProfilePreset(dai.node.StereoDepth.PresetMode.HIGH_DENSITY)
 
         # Must be true for RGB/depth alignment, false would be better for occlusion
         stereo_depth_camera.setLeftRightCheck(True)
         stereo_depth_camera.setDepthAlign(dai.CameraBoardSocket.RGB)
 
-        # Parameters for better short range depth
-        stereo_depth_camera.setExtendedDisparity(False)
-        stereo_depth_camera.setSubpixel(True)
-        stereo_depth_camera.setSubpixelFractionalBits(3)
-        # stereo_depth_camera.initialConfig.setDisparityShift(self.calculate_disparity_shift())
-
-        # Post-processing depth map configuration
         if self.depth_only:
-            # stereo_depth_camera.initialConfig.setBilateralFilterSigma(25)
+            # Parameters for better short range depth
+            stereo_depth_camera.setExtendedDisparity(True)
+            stereo_depth_camera.setSubpixel(True)
+            self.device.setIrLaserDotProjectorBrightness(1000)
+
+            # Post-processing depth map configuration
             config = stereo_depth_camera.initialConfig.get()
+            stereo_depth_camera.setMedianFilter(config.postProcessing.median.KERNEL_7x7)
             config.postProcessing.speckleFilter.enable = True
             config.postProcessing.speckleFilter.speckleRange = 50
             config.postProcessing.thresholdFilter.minRange = 300  # mm
             config.postProcessing.thresholdFilter.maxRange = self.max_z * 10  # mm
-            config.postProcessing.spatialFilter.enable = True
+            # config.postProcessing.spatialFilter = True
             config.postProcessing.temporalFilter.enable = True
             config.postProcessing.decimationFilter.decimationFactor = 1
             stereo_depth_camera.initialConfig.set(config)
@@ -360,7 +357,9 @@ class HandTracker:
 
             # Fetch and return all queried depth coordinates [NOTE: Optimal distance is between 40cm and 6m]
             self.spatial_location_calculator_config_in.send(cfg)
-            return np.array([loc.spatialCoordinates.z for loc in self.spatial_data_out.get().getSpatialLocations()])
+            # return np.array([loc.spatialCoordinates.z for loc in self.spatial_data_out.get().getSpatialLocations()])
+            return np.array([[loc.spatialCoordinates.x, loc.spatialCoordinates.y, loc.spatialCoordinates.z]
+                             for loc in self.spatial_data_out.get().getSpatialLocations()])
 
     def pd_postprocess(self, inference: dai.NNData) -> List[HandRegion]:
         # Get scores and bboxes
@@ -409,22 +408,23 @@ class HandTracker:
             lm_xy = np.expand_dims(hand.norm_landmarks[:, :2], axis=0)
             hand.landmarks = np.squeeze(cv2.transform(lm_xy, mat)).astype(np.int32)
             hand.world_landmarks = np.array(inference.getLayerFp16("Identity_3_dense/BiasAdd/Add")
-                                            ).reshape(-1, 3) * 1000.0
+                                            ).reshape(-1, 3)
 
     def xy_to_xyz(self) -> None:
         for i, h in enumerate(self.hands):
             if self.depth_only:
                 # SUPER MEGA HACK: instead of passing coordinates at extremities, we calculate depth half way
                 coords = [np.mean(h.landmarks[line], axis=0).astype(int) for line in POS_LANDMARK_DEPTH]
-                z = self.get_depth_at_coords(coords, size=3)
-                h.xyz = np.column_stack((h.landmarks, z)).astype(int)
+                h.xyz = self.get_depth_at_coords(coords, size=3)
+                self.hand_hist[h.label].append(h.xyz)
 
             elif self.mp3d_mixed:
                 # Get depth at wrist
-                wrist_xyz = np.column_stack(([h.landmarks[0]], self.get_depth_at_coords([h.landmarks[0]])))[0]
-                wrist_xyz[1] = -wrist_xyz[1]
+                wrist_xy = [h.landmarks[0]]
+                wrist_xyz = self.get_depth_at_coords(wrist_xy) / 1000.0
+                wrist_xyz[0][1] = -wrist_xyz[0][1]
                 points = h.get_rotated_world_landmarks()
-                points = points + wrist_xyz - points[0]
+                points = (points + wrist_xyz - points[0]) * 1000.0
                 h.xyz = self.filter[i].apply(points)
 
             else:
@@ -527,6 +527,7 @@ class HandTracker:
         return frame, self.hands
 
     def get_detector_plane(self, num_points: int = 512) -> None:
+        print("Finding detector plane...")
         # Retry 10 times to find detector plane
         for _ in range(10):
 
@@ -537,11 +538,10 @@ class HandTracker:
                                                   self.img_h - self.DEPTH_REGION_SIZE)]
                                   for _ in range(num_points)])
 
-            depth_values = self.get_depth_at_coords(coords_2d)
-            coords_3d = np.hstack((coords_2d, depth_values.reshape(-1, 1)))
+            coords_3d = self.get_depth_at_coords(coords_2d)
 
             # Check that the depth has been detected
-            if np.count_nonzero(depth_values) > num_points // 4:
+            if np.count_nonzero(coords_3d[:, -1]) > num_points // 4:
 
                 # Filter out points that have 0 depth
                 coords_3d = coords_3d[coords_3d[:, 2] != 0]
@@ -551,11 +551,13 @@ class HandTracker:
                 plane_equation, inlier_points = plane.fit(coords_3d, thresh=20, minPoints=num_points // 2,
                                                           maxIteration=50)
 
-                # For simplicity, make sure that the c in the normal vector always has the same sense
-                if plane_equation[-2] < 0:
-                    plane_equation[-2] = -plane_equation[-2]
+                # For simplicity, make sure that the normal vector always has the same sense
+                for i in range(len(plane_equation)):
+                    if plane_equation[i] < 0:
+                        plane_equation[i] = abs(plane_equation[i])
 
                 self.detector_plane = np.round(plane_equation, 1)
+                print("Detector plane equation is:", self.detector_plane)
                 # self.max_z = np.ceil(max(coords_3d[inlier_points][:, 2]) / 100) * 100
                 return
 
@@ -564,107 +566,5 @@ class HandTracker:
 
         raise DetectorPlaneNotFoundException
 
-    def get_hand_plane(self) -> Dict[str, Any]:
-        planes = {}
-        for key in self.hand_hist.keys():
-
-            hist = self.hand_hist[key]
-
-            if len(hist) == 0:
-                continue
-
-            # filter out points with depth not detected and calculate mean with remaining coordinate history
-            masked_arr = np.ma.masked_equal(hist, 0)
-            coords_3d = np.mean(masked_arr, axis=0)
-
-            # find the best fitting plane with ransac
-            plane = pyransac.Plane()
-            plane_equation, inlier_points = plane.fit(coords_3d, thresh=25, minPoints=int(coords_3d.shape[0] * 0.75),
-                                                      maxIteration=50)
-
-            # For simplicity, make sure that the c in the normal vector always has the same sense
-            if plane_equation[-2] < 0:
-                plane_equation[-2] = -plane_equation[-2]
-
-            planes[key] = plane_equation
-
-        return planes
-
     def exit(self) -> None:
         self.device.close()
-
-
-if __name__ == "__main__":
-    ht = HandTracker(solo=True, mode="mp3d_mixed")
-    color, hands = ht.next_frame()
-    points = hands[0].xyz
-
-    # line_set = o3d.geometry.LineSet()
-    # line_set.points = o3d.utility.Vector3dVector(points)
-    # line_set.lines = o3d.utility.Vector2iVector(PROXIMAL_LINKS)
-    #
-    # # Create a list of spheres
-    # spheres = []
-    # for point in points:
-    #     sphere = o3d.geometry.TriangleMesh.create_sphere(radius=0.5)
-    #     sphere.translate(point)
-    #     spheres.append(sphere)
-    #
-    # # Visualize the LineSet and the spheres
-    # o3d.visualization.draw_geometries([line_set, *spheres, cam])
-    #
-    # # Create a LineSet object
-    line_set = o3d.geometry.LineSet()
-    line_set.points = o3d.utility.Vector3dVector(points)
-    line_set.lines = o3d.utility.Vector2iVector(PROXIMAL_LINKS)
-
-    # Create camera
-    cam = o3d.geometry.TriangleMesh.create_arrow(cylinder_radius=5, cone_radius=7.5, cylinder_height=15,
-                                                 cone_height=10)
-    cam.paint_uniform_color([0.2, 0.7, 1])
-    cam.compute_vertex_normals()
-
-    # Create a list of spheres
-
-    spheres = []
-    for point in points:
-        sphere = o3d.geometry.TriangleMesh.create_sphere(radius=1)
-        sphere.translate(point)
-        spheres.append(sphere)
-
-    # Create a Visualizer object
-    vis = o3d.visualization.Visualizer()
-    vis.create_window()
-
-    # Add the geometries to the visualizer
-    vis.add_geometry(line_set)
-    vis.add_geometry(cam)
-    for sphere in spheres:
-        vis.add_geometry(sphere)
-
-    while True:
-        color, hands = ht.next_frame()
-
-        if hands:
-            plot_lines_op3d(vis, hands[0].xyz, line_set, spheres)
-
-
-        # # color = draw(color, ht.fps, hands)
-        # # cv2.imshow("color", color)
-        #
-        # depth = ht.get_depth_frame()
-        # # depth = cv2.copyMakeBorder(depth, 0, 0, 0, 20, cv2.BORDER_CONSTANT)[:, 20:]
-        # depth = cv2.applyColorMap(depth.astype(np.uint8), cv2.COLORMAP_HOT)
-        # # depth = draw(depth, ht.fps, hands)
-        # cv2.imshow("depth", depth)
-        #
-        # edge = ht.get_edge_detection()
-        # # cv2.imshow("edge", edge)
-        #
-        # # edge = cv2.cvtColor(edge, cv2.COLOR_GRAY2BGR)
-        # # edge = draw(edge, ht.fps, hands, depth=True)
-        # # mix = cv2.addWeighted(depth, 0.3, edge, 0.7, 0)
-        # # cv2.imshow("mix", mix)
-        #
-        # if cv2.waitKey(1) == ord('q'):
-        #     break

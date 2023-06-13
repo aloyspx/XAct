@@ -1,7 +1,7 @@
 from typing import List
 
 import cv2
-import open3d as o3d
+# import open3d as o3d
 import numpy as np
 from matplotlib import pyplot as plt
 
@@ -17,18 +17,19 @@ def viz_matplotlib(planes, coords=None, pts=None):
         # Create a 3D plot
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
-        ax.set_zlim([-1000, 0])
+        ax.set_zlim([-1000, 200])
         ax.view_init(elev=0, azim=azim)
 
         # Plot the points
-        if coords:
-            ax.scatter(coords[pts, 0], coords[pts, 1], -coords[pts, 2], c='b', marker='o')
-            outliers = list(set(list(np.arange(len(coords)))).difference(set(list(pts))))
-            ax.scatter(coords[outliers, 0], coords[outliers, 1], -coords[outliers, 2], c='r', marker='x')
+        if coords.any():
+            ax.scatter(coords[:, 0], coords[:, 1], -coords[:, 2], c='r', marker='o')
+            # ax.scatter(coords[pts, 0], coords[pts, 1], -coords[pts, 2], c='b', marker='o')
+            # outliers = list(set(list(np.arange(len(coords)))).difference(set(list(pts))))
+            # ax.scatter(coords[outliers, 0], coords[outliers, 1], -coords[outliers, 2], c='r', marker='x')
 
         for plane in planes:
             a, b, c, d = plane
-            xx, yy = np.meshgrid(range(0, 1152), range(0, 648))
+            xx, yy = np.meshgrid(range(-1000, 1000), range(-1000, 1000))
             zz = (-a * xx - b * yy - d) * 1. / c
             ax.plot_surface(xx, yy, -zz)
 
@@ -58,8 +59,8 @@ def draw(frame: np.ndarray, fps: FPS, hands: List[HandRegion] = None, keypoints:
     if hands:
         for hand in hands:
             for i, xyz in enumerate(hand.xyz):
-                xy = xyz[:-1]
-                z = xyz[-1]
+                xy = hand.landmarks[i]
+                z = xyz.astype(int)[-1]
                 frame = cv2.circle(frame, xy, radius=1, color=(0, 0, 255), thickness=10)
 
                 if keypoints:

@@ -11,16 +11,7 @@ POS_LANDMARK_DEPTH = [[0, 0],
                       [13, 13], [14, 14], [15, 15], [15, 16],
                       [17, 17], [18, 18], [19, 19], [19, 20]]
 
-COR_VECT = {
-    "thumb_index": [[2, 3], [5, 6]],
-    "index_middle": [[5, 6], [9, 10]],
-    "middle_ring": [[9, 10], [13, 14]],
-    "ring_little": [[13, 14], [17, 18]]
-}
-
-SAG_VECT = {
-    "thumb_index": [[2, 3], [5, 6]],
-    "index_middle": [[5, 6], [9, 10]],
-    "middle_ring": [[9, 10], [13, 14]],
-    "ring_little": [[13, 14], [17, 18]]
-}
+PROTOCOLS = ["No Protocol",
+             "Left Hand PA View", "Right Hand PA View",
+             "Left Hand Oblique View", "Right Hand Oblique View",
+             "Left Hand Lateral View", "Right Hand Lateral View"]

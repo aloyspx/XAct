@@ -24,8 +24,8 @@ class VideoThread(QThread):
 
             if frame.any():
                 frame = draw(frame, self.tracker.fps, hands, depth=True)
-                depth = cv2.applyColorMap(depth.astype(np.uint8), cv2.COLORMAP_HOT)
-                frame = cv2.addWeighted(depth, 0.3, frame, 0.7, 0)
+                depth = cv2.applyColorMap(depth.astype(np.uint8), cv2.COLORMAP_JET)
+                frame = cv2.addWeighted(depth, 0.4, frame, 0.6, 0)
                 self.change_pixmap_signal.emit(frame)
 
     def stop(self) -> None:
