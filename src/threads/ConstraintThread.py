@@ -1,7 +1,8 @@
 import time
-from PyQt5.QtCore import QThread
 
-from src.utils.Constants import PROTOCOLS
+from PyQt5 import QtWidgets
+from PyQt5.QtCore import QThread, pyqtSignal
+
 from src.HandTracker import HandTracker
 from src.protocols.HandLatProtocol import HandLatProtocol
 from src.protocols.HandObqProtocol import HandObqProtocol
@@ -9,41 +10,51 @@ from src.protocols.HandPAProtocol import HandPAProtocol
 
 
 class ConstraintThread(QThread):
+    change_light_color_signal = pyqtSignal(str)
 
-    def __init__(self, tracker: HandTracker) -> None:
+    def __init__(self, tracker: HandTracker, table_widget: QtWidgets.QTableWidget) -> None:
         super().__init__()
         self._run_flag = True
         self.tracker = tracker
+        self.table_widget = table_widget
         self.constraint = None
 
-    def set_protocol(self, constraint_name):
-        idx = PROTOCOLS.index(constraint_name)
+    def set_protocol(self, constraint_idx):
 
-        if idx == 0:
+        self.tracker.reset_hand_hist()
+
+        if constraint_idx == 0:
             self.constraint = None
-        elif idx == 1:
-            self.constraint = HandPAProtocol(handedness="left")
-        elif idx == 2:
-            self.constraint = HandPAProtocol(handedness="right")
-        elif idx == 3:
-            self.constraint = HandObqProtocol(handedness="left")
-        elif idx == 4:
-            self.constraint = HandObqProtocol(handedness="right")
-        elif idx == 5:
-            self.constraint = HandLatProtocol(handedness="left")
-        elif idx == 6:
-            self.constraint = HandLatProtocol(handedness="right")
+        elif constraint_idx == 1:
+            self.constraint = HandPAProtocol("left", self.table_widget)
+        elif constraint_idx == 2:
+            self.constraint = HandPAProtocol("right", self.table_widget)
+        elif constraint_idx == 3:
+            self.constraint = HandObqProtocol("left")
+        elif constraint_idx == 4:
+            self.constraint = HandObqProtocol("right")
+        elif constraint_idx == 5:
+            self.constraint = HandLatProtocol("left")
+        elif constraint_idx == 6:
+            self.constraint = HandLatProtocol("right")
         else:
             raise NotImplementedError
 
     def run(self) -> None:
         while self._run_flag:
-            time.sleep(2.5)
+            time.sleep(1)
 
-            if self.constraint:
-                self.constraint.update_hand_parameters(self.tracker.hand_hist)
-                self.constraint.update_detector_parameters(self.tracker.detector_plane)
-                self.constraint.check_constraints()
+            if not self.constraint:
+                self.change_light_color_signal.emit("blue")
+                continue
+
+            self.constraint.set_hand_parameter(self.tracker.hand_hist)
+            self.constraint.set_detector_parameter(self.tracker.detector_plane)
+
+            if self.constraint.check_constraints():
+                self.change_light_color_signal.emit("green")
+            else:
+                self.change_light_color_signal.emit("red")
 
     def stop(self) -> None:
         """Sets run flag to False and waits for thread to finish"""

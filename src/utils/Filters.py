@@ -1,11 +1,13 @@
 #
 # Filtering
 #
-from math import pi
-import numpy as np
 import time
+from math import pi
 
-class LandmarksSmoothingFilter: 
+import numpy as np
+
+
+class LandmarksSmoothingFilter:
     '''
     Adapted from: https://github.com/google/mediapipe/blob/master/mediapipe/calculators/util/landmarks_smoothing_calculator.cc
     
@@ -20,14 +22,15 @@ class LandmarksSmoothingFilter:
                 size. Object size is calculated as maximum side of rectangular bounding
                 box of the object in XY plane. Default=False
     '''
+
     def __init__(self,
-                frequency=30,
-                min_cutoff=1,
-                beta=0,
-                derivate_cutoff=1,
-                min_allowed_object_scale=1e-6,
-                disable_value_scaling=False
-                ):
+                 frequency=30,
+                 min_cutoff=1,
+                 beta=0,
+                 derivate_cutoff=1,
+                 min_allowed_object_scale=1e-6,
+                 disable_value_scaling=False
+                 ):
         self.frequency = frequency
         self.min_cutoff = min_cutoff
         self.beta = beta
@@ -43,9 +46,9 @@ class LandmarksSmoothingFilter:
         # `options_.min_allowed_object_scale`) smoothing will be disabled and
         # landmarks will be returned as is.
         # Object scale is calculated as average between bounding box width and height
-        # with sides parallel to axis.
-        min_xy = np.min(landmarks[:,:2], axis=0)
-        max_xy = np.max(landmarks[:,:2], axis=0)
+        #  with sides parallel to axis.
+        min_xy = np.min(landmarks[:, :2], axis=0)
+        max_xy = np.max(landmarks[:, :2], axis=0)
         return np.mean(max_xy - min_xy)
 
     def apply(self, landmarks, timestamp=None, object_scale=0):
@@ -63,7 +66,7 @@ class LandmarksSmoothingFilter:
         if self.disable_value_scaling:
             value_scale = 1
         else:
-            object_scale = object_scale if object_scale else self.get_object_scale(landmarks) 
+            object_scale = object_scale if object_scale else self.get_object_scale(landmarks)
             if object_scale < self.min_allowed_object_scale:
                 return landmarks
             value_scale = 1 / object_scale
@@ -81,7 +84,8 @@ class LandmarksSmoothingFilter:
     def reset(self):
         self.init = True
 
-class OneEuroFilter: 
+
+class OneEuroFilter:
     '''
     Adapted from: https://github.com/google/mediapipe/blob/master/mediapipe/util/filtering/one_euro_filter.cc
     Paper: https://cristal.univ-lille.fr/~casiez/1euro/
@@ -103,12 +107,13 @@ class OneEuroFilter:
                 original algorithm, but can be turned to further smooth the
                 speed (i.e. derivate) on the object. Default=1
     '''
+
     def __init__(self,
-                frequency=30,
-                min_cutoff=1,
-                beta=0,
-                derivate_cutoff=1,
-                ):
+                 frequency=30,
+                 min_cutoff=1,
+                 beta=0,
+                 derivate_cutoff=1,
+                 ):
         self.frequency = frequency
         self.min_cutoff = min_cutoff
         self.beta = beta
@@ -152,12 +157,14 @@ class OneEuroFilter:
 
         # filter the given value.
         return self.x.apply_with_alpha(value, self.get_alpha(cutoff))
-        
+
+
 class LowPassFilter:
     '''
     Adapted from: https://github.com/google/mediapipe/blob/master/mediapipe/util/filtering/low_pass_filter.cc
     Note that 'value' can be a numpy array
     '''
+
     def __init__(self, alpha=0.9):
         self.alpha = alpha
         self.initialized = False
@@ -186,4 +193,3 @@ class LowPassFilter:
 
     def last_value(self):
         return self.stored_value
-

@@ -1,15 +1,15 @@
 """Heavily inspired from depthai example"""
-import time
-import random
-import cv2
 import pathlib
+import random
+import time
+from collections import deque
+from threading import Lock
+from typing import Union, Any, List, Dict
+
+import cv2
 import depthai as dai
 import numpy as np
 import pyransac3d as pyransac
-from typing import Union, Any, List, Dict
-
-from collections import deque
-from threading import Lock
 
 import src.utils.MediapipeUtils as MpU
 from src.utils.Constants import POS_LANDMARK_DEPTH
@@ -17,6 +17,8 @@ from src.utils.CustomExceptions import DetectorPlaneNotFoundException, USBSpeedE
 from src.utils.FPS import FPS
 from src.utils.Filters import LandmarksSmoothingFilter
 from src.utils.MediapipeUtils import HandRegion
+
+
 # from src.Visualisers import draw, plot_lines_op3d, viz_matplotlib
 
 
@@ -41,8 +43,6 @@ class HandTracker:
         self.mp3d_mixed = (mode == "mp3d_mixed")
         self.depth_only = not self.mp3d_mixed
 
-        super().__init__()
-
         # Prediction variables
         self.solo: bool = solo
         self.use_previous_landmark: bool = False
@@ -62,7 +62,7 @@ class HandTracker:
         self.pad_h: int = (self.img_w - self.img_h) // 2
         self.pad_w: int = 0
 
-        # better than queue as it'll remove the last element if the size exceeds the max len
+        # better than queue as FILO
         if self.depth_only:
             self.hand_hist: Dict[str, deque] = {"left": deque(maxlen=self.INTERNAL_FPS),
                                                 "right": deque(maxlen=self.INTERNAL_FPS)}
@@ -117,6 +117,9 @@ class HandTracker:
 
         # Synchronization of spatial_calc_config_in and spatial_data_out queue packets
         self._mutex = Lock()
+
+        self.detector_plane = None
+        self.get_detector_plane()
 
     def create_color_camera(self) -> (dai.node.ColorCamera, dai.node.ImageManip):
         # Color camera
@@ -182,9 +185,8 @@ class HandTracker:
 
         if self.depth_only:
             # Parameters for better short range depth
-            stereo_depth_camera.setExtendedDisparity(True)
             stereo_depth_camera.setSubpixel(True)
-            self.device.setIrLaserDotProjectorBrightness(1000)
+            self.device.setIrLaserDotProjectorBrightness(1200)
 
             # Post-processing depth map configuration
             config = stereo_depth_camera.initialConfig.get()
@@ -193,7 +195,7 @@ class HandTracker:
             config.postProcessing.speckleFilter.speckleRange = 50
             config.postProcessing.thresholdFilter.minRange = 300  # mm
             config.postProcessing.thresholdFilter.maxRange = self.max_z * 10  # mm
-            # config.postProcessing.spatialFilter = True
+            # config.postProcessing.spatialFilter.enable = True
             config.postProcessing.temporalFilter.enable = True
             config.postProcessing.decimationFilter.decimationFactor = 1
             stereo_depth_camera.initialConfig.set(config)
@@ -565,6 +567,10 @@ class HandTracker:
                 time.sleep(1)
 
         raise DetectorPlaneNotFoundException
+
+    def reset_hand_hist(self) -> None:
+        self.hand_hist: Dict[str, deque] = {"left": deque(maxlen=self.INTERNAL_FPS),
+                                            "right": deque(maxlen=self.INTERNAL_FPS)}
 
     def exit(self) -> None:
         self.device.close()

@@ -2,11 +2,11 @@
 @author: geaxx
 """
 import time
-import cv2
-import numpy as np
-
 from collections import deque
 from typing import Tuple
+
+import cv2
+import numpy as np
 
 
 class FPS:  # To measure the number of frame per second

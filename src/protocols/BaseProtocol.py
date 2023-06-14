@@ -1,31 +1,50 @@
-from pprint import pprint
 from typing import List
 
 import numpy as np
+from PyQt5 import QtWidgets
+
+from src.utils.Constants import HAND_KEYPOINTS
 
 
 class BaseProtocol:
-    def __init__(self, protocol_name):
+    def __init__(self, protocol_name: str, handedness: str, table_widget: QtWidgets.QTableWidget):
         self.protocol_name = protocol_name
+        self.handedness = handedness
+        self.table_widget = table_widget
         self.parameters = self.create_default_parameters()
+        print(f"Created constraint protocol: {self.protocol_name}")
 
-    @staticmethod
-    def create_default_parameters():
-        hand_keypoints = ['Wrist', 'CMC', 'Thumb_MCP', 'Thumb_IP', 'Thumb_Tip', 'Index_MCP', 'Index_PIP', 'Index_DIP',
-                          'Index_Tip', 'Middle_MCP', 'Middle_PIP', 'Middle_DIP', 'Middle_Tip', 'Ring_MCP', 'Ring_PIP',
-                          'Ring_DIP', 'Ring_Tip', 'Pinky_MCP', 'Pinky_PIP', 'Pinky_DIP', 'Pinky_Tip']
+    def create_default_parameters(self):
 
-        left_hand = {key: None for key in hand_keypoints}
-        right_hand = {key: None for key in hand_keypoints}
+        hand = {key: None for key in HAND_KEYPOINTS}
         detector_plane = [0., 0., 0., 0.]
 
         return {
-            "left_hand": left_hand,
-            "right_hand": right_hand,
+            "handedness": self.handedness,
+            "hand": hand,
             "detector_plane": detector_plane
         }
 
-    def key_exists(self, keys):
+    def set_detector_parameter(self, detector_plane: List[int]):
+        assert len(detector_plane) == 4
+        self.parameters["detector_plane"] = detector_plane
+
+    def set_hand_parameter(self, hand_hist: np.ndarray):
+
+        hist = hand_hist[self.handedness]
+
+        if len(hist) == 0:
+            print(f"No history present. This means the {self.handedness} hand was never detected.")
+            return []
+
+        # filter out points with depth not detected and calculate mean with remaining coordinate history
+        masked_arr = np.ma.masked_equal(hist, 0)
+        coords_3d = np.median(masked_arr, axis=0)
+
+        for coord, coord_key in zip(coords_3d, self.parameters["hand"].keys()):
+            self.parameters["hand"][coord_key] = coord
+
+    def key_exists(self, keys: List[str]):
         d = self.parameters
         for key in keys:
             if key in d:
@@ -34,29 +53,10 @@ class BaseProtocol:
                 return False
         return True
 
-    def get_parameters(self):
-        return self.parameters
-
-    def set_detector_parameter(self, detector_plane):
-        assert len(detector_plane) == 4
-        self.parameters["detector_plane"] = detector_plane
-
-    def set_hand_parameter(self, hand_hist: np.ndarray, key: str):
-
-        hist = hand_hist[key]
-
-        if len(hist) == 0:
-            print(f"No history present. This means the {key} hand was never detected.")
-            return []
-
-        # filter out points with depth not detected and calculate mean with remaining coordinate history
-        masked_arr = np.ma.masked_equal(hist, 0)
-        coords_3d = np.mean(masked_arr, axis=0)
-
-        assert len(coords_3d) == len(self.parameters.keys())
-
-        for coord, coord_key in zip(coords_3d, self.parameters.keys()):
-            self.parameters[key][coord_key] = coord
-
+    # This is the function that must be implemented in all child classes
     def check_constraints(self):
         pass
+
+    @staticmethod
+    def dict_to_ndarray(d: dict) -> np.ndarray:
+        return np.array(list(d.values()))

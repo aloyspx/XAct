@@ -1,13 +1,13 @@
-import pyransac3d as pyransac
-import numpy as np
-
 from typing import List
+
+import numpy as np
+import pyransac3d as pyransac
 
 
 def get_hand_plane(hand_coords) -> List[int]:
     # find the best fitting plane with ransac
     plane = pyransac.Plane()
-    plane_equation, inlier_points = plane.fit(hand_coords, thresh=20, minPoints=int(hand_coords.shape[0] * 0.8),
+    plane_equation, inlier_points = plane.fit(hand_coords, thresh=10, minPoints=hand_coords.shape[0],
                                               maxIteration=100)
 
     # For simplicity, make sure that the normal vector always has the same sense
@@ -15,4 +15,4 @@ def get_hand_plane(hand_coords) -> List[int]:
         if plane_equation[i] < 0:
             plane_equation[i] = abs(plane_equation[i])
 
-    return plane_equation
+    return np.round(plane_equation, 1)

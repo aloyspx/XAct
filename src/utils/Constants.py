@@ -15,3 +15,7 @@ PROTOCOLS = ["No Protocol",
              "Left Hand PA View", "Right Hand PA View",
              "Left Hand Oblique View", "Right Hand Oblique View",
              "Left Hand Lateral View", "Right Hand Lateral View"]
+
+HAND_KEYPOINTS = ['Wrist', 'CMC', 'Thumb_MCP', 'Thumb_IP', 'Thumb_Tip', 'Index_MCP', 'Index_PIP', 'Index_DIP',
+                  'Index_Tip', 'Middle_MCP', 'Middle_PIP', 'Middle_DIP', 'Middle_Tip', 'Ring_MCP', 'Ring_PIP',
+                  'Ring_DIP', 'Ring_Tip', 'Pinky_MCP', 'Pinky_PIP', 'Pinky_DIP', 'Pinky_Tip']
