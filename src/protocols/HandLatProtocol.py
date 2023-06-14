@@ -2,9 +2,9 @@ from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import QTableWidgetItem
 
 from src.protocols.BaseProtocol import BaseProtocol
-from src.utils.Calculators import get_hand_plane
+from src.utils.Calculators import get_hand_plane, calc_angle_between_planes, \
+    calc_smallest_distance_between_points_and_surface
 from src.utils.Constants import HAND_KEYPOINTS
-from src.utils.Geometry import calc_angle_between_planes, calc_smallest_distance_between_points_and_surface
 
 
 class HandLatProtocol(BaseProtocol):
@@ -22,12 +22,13 @@ class HandLatProtocol(BaseProtocol):
             self.table_widget.setItem(0, 1, QTableWidgetItem(f"{camera_tilt} deg"))
 
         hand = self.dict_to_ndarray(self.parameters["hand"])
+        self.hist.append(hand)
         detector_plane = self.parameters["detector_plane"]
 
         # 2. Check that the angle between the hand and the detector plane is less than 15 degrees
         hand_plane = get_hand_plane(hand[1:])
         angle = int(calc_angle_between_planes(detector_plane, hand_plane))
-        is_angle = (80 < angle < 100)
+        is_angle = (80 < angle)
 
         # Display unmet constraints
         if not is_angle and True:

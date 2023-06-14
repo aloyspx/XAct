@@ -1,21 +1,27 @@
+import threading
 import copy
 import os
-from datetime import datetime
 
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
 import numpy as np
 
+from datetime import datetime
+
 from src.utils.Constants import PROXIMAL_LINKS
 
 
 def save(detector_plane, hand_coords, protocol_name, save_dir="outputs"):
-    output_folder = f"{save_dir}/{protocol_name}-{str(datetime.now()).replace(' ', '')}/"
+    def save_thread():
+        output_folder = f"{save_dir}/{protocol_name}-{str(datetime.now()).replace(' ', '')}/"
 
-    os.makedirs(output_folder, exist_ok=True)
+        os.makedirs(output_folder, exist_ok=True)
 
-    visualize_plane_hand_animation(detector_plane, hand_coords, output_file_name=f"{output_folder}/animation.mp4")
-    np.savez(f"{output_folder}/data.npz", {"hand": np.array(hand_coords), "detector_plane": detector_plane})
+        visualize_plane_hand_animation(detector_plane, hand_coords, output_file_name=f"{output_folder}/animation.mp4")
+        np.savez(f"{output_folder}/data.npz", {"hand": np.array(hand_coords), "detector_plane": detector_plane})
+
+    t = threading.Thread(target=save_thread)
+    t.start()
 
 
 def visualize_plane_hand_animation(plane, coords_list, output_file_name="animation"):

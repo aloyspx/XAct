@@ -5,12 +5,12 @@ import numpy as np
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPixmap
-from PyQt5.QtWidgets import QTableWidgetItem, QMainWindow
+from PyQt5.QtWidgets import QMainWindow
 
-from src.threads.ConstraintThread import ConstraintThread
-from src.utils.Constants import PROTOCOLS
 from src.HandTracker import HandTracker
+from src.threads.ConstraintThread import ConstraintThread
 from src.threads.VideoThread import VideoThread
+from src.utils.Constants import PROTOCOLS
 
 
 class App(QMainWindow):
