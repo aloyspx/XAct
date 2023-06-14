@@ -7,6 +7,7 @@ from src.HandTracker import HandTracker
 from src.protocols.HandLatProtocol import HandLatProtocol
 from src.protocols.HandObqProtocol import HandObqProtocol
 from src.protocols.HandPAProtocol import HandPAProtocol
+from src.utils.SaveUtils import save
 
 
 class ConstraintThread(QThread):
@@ -21,6 +22,9 @@ class ConstraintThread(QThread):
 
     def set_protocol(self, constraint_idx):
 
+        if self.constraint:
+            save(self.tracker.detector_plane, self.constraint.hist, self.constraint.protocol_name)
+
         self.tracker.reset_hand_hist()
 
         if constraint_idx == 0:
@@ -30,13 +34,13 @@ class ConstraintThread(QThread):
         elif constraint_idx == 2:
             self.constraint = HandPAProtocol("right", self.table_widget)
         elif constraint_idx == 3:
-            self.constraint = HandObqProtocol("left")
+            self.constraint = HandObqProtocol("left", self.table_widget)
         elif constraint_idx == 4:
-            self.constraint = HandObqProtocol("right")
+            self.constraint = HandObqProtocol("right", self.table_widget)
         elif constraint_idx == 5:
-            self.constraint = HandLatProtocol("left")
+            self.constraint = HandLatProtocol("left", self.table_widget)
         elif constraint_idx == 6:
-            self.constraint = HandLatProtocol("right")
+            self.constraint = HandLatProtocol("right", self.table_widget)
         else:
             raise NotImplementedError
 
@@ -48,13 +52,15 @@ class ConstraintThread(QThread):
                 self.change_light_color_signal.emit("blue")
                 continue
 
-            self.constraint.set_hand_parameter(self.tracker.hand_hist)
-            self.constraint.set_detector_parameter(self.tracker.detector_plane)
+            self.constraint.set_camera_tilt(self.tracker.get_camera_tilt())
+            is_hand_detected = self.constraint.set_hand_parameter(self.tracker.hand_hist)
+            is_table_detected = self.constraint.set_detector_parameter(self.tracker.detector_plane)
 
-            if self.constraint.check_constraints():
-                self.change_light_color_signal.emit("green")
-            else:
-                self.change_light_color_signal.emit("red")
+            if is_hand_detected and is_table_detected:
+                if self.constraint.check_constraints():
+                    self.change_light_color_signal.emit("green")
+                else:
+                    self.change_light_color_signal.emit("red")
 
     def stop(self) -> None:
         """Sets run flag to False and waits for thread to finish"""

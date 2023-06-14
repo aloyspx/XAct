@@ -1,4 +1,3 @@
-import numpy as np
 from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import QTableWidgetItem
 
@@ -16,22 +15,24 @@ class HandPAProtocol(BaseProtocol):
         self.table_widget.clearContents()
 
         hand = self.dict_to_ndarray(self.parameters["hand"])
+        self.hist.append(hand)
+
         detector_plane = self.parameters["detector_plane"]
 
         # 1. Check that the angle between the hand and the detector plane is less than 15 degrees
         hand_plane = get_hand_plane(hand[1:])
         angle = int(calc_angle_between_planes(detector_plane, hand_plane))
-        is_angle = (angle < 15)
+        is_angle = (angle > 165) or (angle < 15)
 
         # Display unmet constraints
         if not is_angle:
             self.table_widget.setItem(0, 0, QTableWidgetItem("Hand Angle"))
             self.table_widget.setItem(0, 1, QTableWidgetItem(f"{angle} deg"))
 
-        # 2. Check that all finger keypoints are less than 30mm from the table and wrist is less than 50mm
+        # 2. Check that all finger keypoints are less than 50mm from the table and wrist is less than 75mm
         distances = calc_smallest_distance_between_points_and_surface(hand, detector_plane).astype(int)
-        wrist_close = list(distances[:2] < 60)
-        rest_close = list(distances[2:] < 40)
+        wrist_close = list(distances[:2] < 75)
+        rest_close = list(distances[2:] < 50)
         all_close = wrist_close + rest_close
 
         # Display unmet constraints

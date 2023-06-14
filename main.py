@@ -5,7 +5,7 @@ import numpy as np
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPixmap
-from PyQt5.QtWidgets import QTableWidgetItem
+from PyQt5.QtWidgets import QTableWidgetItem, QMainWindow
 
 from src.threads.ConstraintThread import ConstraintThread
 from src.utils.Constants import PROTOCOLS
@@ -13,15 +13,17 @@ from src.HandTracker import HandTracker
 from src.threads.VideoThread import VideoThread
 
 
-class App:
+class App(QMainWindow):
 
-    def __init__(self, main_window):
+    def __init__(self):
         # Main Window
-        main_window.setObjectName("MainWindow")
-        main_window.setFixedSize(1030, 525)
-        self.central_widget = QtWidgets.QWidget(main_window)
+        super().__init__()
+
+        self.setObjectName("MainWindow")
+        self.setFixedSize(1030, 525)
+        self.central_widget = QtWidgets.QWidget(self)
         self.central_widget.setObjectName("central_widget")
-        main_window.setCentralWidget(self.central_widget)
+        self.setCentralWidget(self.central_widget)
 
         # Video Viewer
         self.v_w, self.v_h = 800, 450
@@ -72,23 +74,23 @@ class App:
         self.tableWidget.verticalHeader().hide()
 
         # Menu bar
-        self.menubar = QtWidgets.QMenuBar(main_window)
+        self.menubar = QtWidgets.QMenuBar(self)
         self.menubar.setGeometry(QtCore.QRect(0, 0, 1025, 22))
         self.menubar.setObjectName("menubar")
-        main_window.setMenuBar(self.menubar)
+        self.setMenuBar(self.menubar)
 
         # Status bar
-        self.statusbar = QtWidgets.QStatusBar(main_window)
+        self.statusbar = QtWidgets.QStatusBar(self)
         self.statusbar.setObjectName("statusbar")
-        main_window.setStatusBar(self.statusbar)
+        self.setStatusBar(self.statusbar)
 
         # Exit
-        self.actionExit = QtWidgets.QAction(main_window)
+        self.actionExit = QtWidgets.QAction(self)
         self.actionExit.setObjectName("actionExit")
 
         # Final UI Setup
-        self.retranslate_ui(main_window)
-        QtCore.QMetaObject.connectSlotsByName(main_window)
+        self.retranslate_ui(self)
+        QtCore.QMetaObject.connectSlotsByName(self)
 
         # Calculates information about positioning in the background
         self.tracker = HandTracker()
@@ -147,10 +149,14 @@ class App:
     def on_protocolDropdown_changed(self, idx: int) -> None:
         self.constraints_thread.set_protocol(idx)
 
+    def closeEvent(self, event) -> None:
+        self.video_thread.stop()
+        self.constraints_thread.stop()
+        sys.exit(0)
+
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
-    MainWindow = QtWidgets.QMainWindow()
-    ui = App(MainWindow)
-    MainWindow.show()
+    ui = App()
+    ui.show()
     sys.exit(app.exec_())

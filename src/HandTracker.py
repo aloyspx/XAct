@@ -78,9 +78,6 @@ class HandTracker:
 
         # Device
         self.device = dai.Device()
-        print(self.device.getAllAvailableDevices())
-        self.device.setLogLevel(dai.LogLevel.WARN)
-        self.device.setLogOutputLevel(dai.LogLevel.WARN)
         self.device_calibration_info = self.device.readCalibration()
 
         if int(self.device.getUsbSpeed()) < int(dai.UsbSpeed.SUPER):
@@ -331,7 +328,8 @@ class HandTracker:
 
     def get_camera_tilt(self) -> float:
         imu_packet = self.imu_out.get().packets[0]
-        return np.rad2deg(np.arctan(imu_packet.acceleroMeter.z / (imu_packet.acceleroMeter.y + 1e-8)))
+        den = np.sqrt(imu_packet.acceleroMeter.y ** 2 + imu_packet.acceleroMeter.z ** 2)
+        return np.rad2deg(np.arctan(imu_packet.acceleroMeter.x / den))
 
     def get_depth_at_coords(self, coords: np.ndarray, size: int = None) -> np.ndarray:
 
@@ -533,34 +531,30 @@ class HandTracker:
         # Retry 10 times to find detector plane
         for _ in range(10):
 
-            # Sample some random 2D points and fetch their corresponding depth
-            coords_2d = np.array([[random.randint(self.DEPTH_REGION_SIZE,
-                                                  self.img_w - self.DEPTH_REGION_SIZE),
-                                   random.randint(self.DEPTH_REGION_SIZE,
-                                                  self.img_h - self.DEPTH_REGION_SIZE)]
+            w_padding = int(self.img_w * 0.2)
+            h_padding = int(self.img_h * 0.2)
+            # Sample some random 2D points from center of sensor view and fetch their corresponding depth
+            coords_2d = np.array([[random.randint(self.DEPTH_REGION_SIZE + w_padding,
+                                                  self.img_w - w_padding - self.DEPTH_REGION_SIZE),
+                                   random.randint(self.DEPTH_REGION_SIZE + h_padding,
+                                                  self.img_h - h_padding - self.DEPTH_REGION_SIZE)]
                                   for _ in range(num_points)])
 
             coords_3d = self.get_depth_at_coords(coords_2d)
 
             # Check that the depth has been detected
-            if np.count_nonzero(coords_3d[:, -1]) > num_points // 4:
+            if np.count_nonzero(coords_3d[:, -1]) > 3 * num_points // 4:
 
                 # Filter out points that have 0 depth
                 coords_3d = coords_3d[coords_3d[:, 2] != 0]
 
                 # Calculate the plane using RANSAC
                 plane = pyransac.Plane()
-                plane_equation, inlier_points = plane.fit(coords_3d, thresh=20, minPoints=num_points // 2,
-                                                          maxIteration=50)
+                plane_equation, inlier_points = plane.fit(coords_3d, thresh=10, minPoints=num_points * 0.8,
+                                                          maxIteration=100)
 
-                # For simplicity, make sure that the normal vector always has the same sense
-                for i in range(len(plane_equation)):
-                    if plane_equation[i] < 0:
-                        plane_equation[i] = abs(plane_equation[i])
-
-                self.detector_plane = np.round(plane_equation, 1)
+                self.detector_plane = plane_equation
                 print("Detector plane equation is:", self.detector_plane)
-                # self.max_z = np.ceil(max(coords_3d[inlier_points][:, 2]) / 100) * 100
                 return
 
             else:

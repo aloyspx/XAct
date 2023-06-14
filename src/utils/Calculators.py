@@ -1,6 +1,5 @@
 from typing import List
 
-import numpy as np
 import pyransac3d as pyransac
 
 
@@ -11,8 +10,8 @@ def get_hand_plane(hand_coords) -> List[int]:
                                               maxIteration=100)
 
     # For simplicity, make sure that the normal vector always has the same sense
-    for i in range(len(plane_equation)):
-        if plane_equation[i] < 0:
-            plane_equation[i] = abs(plane_equation[i])
+    # for i in range(len(plane_equation)):
+    #     if plane_equation[i] < 0:
+    #         plane_equation[i] = abs(plane_equation[i])
 
-    return np.round(plane_equation, 1)
+    return plane_equation
