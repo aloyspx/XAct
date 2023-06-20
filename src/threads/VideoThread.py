@@ -17,9 +17,8 @@ class VideoThread(QThread):
         self._run_flag = True
         self.tracker = tracker
 
-    @staticmethod
-    def draw(frame: np.ndarray, fps: FPS, hands: List[HandRegion] = None, keypoints: bool = False,
-             depth: bool = False) -> np.ndarray:
+    def draw(self, frame: np.ndarray, fps: FPS, hands: List[HandRegion] = None, correct_kpts: List[bool] = 21 * [False],
+             keypoints: bool = False, depth: bool = False) -> np.ndarray:
         frame = fps.draw(frame, (0, 25), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
         if hands:
@@ -27,7 +26,8 @@ class VideoThread(QThread):
                 for i, xyz in enumerate(hand.xyz):
                     xy = hand.landmarks[i]
                     z = xyz.astype(int)[-1]
-                    frame = cv2.circle(frame, xy, radius=1, color=(0, 0, 255), thickness=10)
+                    frame = cv2.circle(frame, xy, radius=1,
+                                       color=(0, 255, 0) if correct_kpts[i] else (0, 0, 255), thickness=10)
 
                     if keypoints:
                         frame = cv2.putText(frame, str(i), xy + 10, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1,
@@ -44,12 +44,9 @@ class VideoThread(QThread):
         while self._run_flag:
 
             frame, hands = self.tracker.next_frame()
-            depth = self.tracker.get_depth_frame()
 
             if frame.any():
-                frame = self.draw(frame, self.tracker.fps, hands, depth=True)
-                depth = cv2.applyColorMap(depth.astype(np.uint8), cv2.COLORMAP_JET)
-                frame = cv2.addWeighted(depth, 0.4, frame, 0.6, 0)
+                frame = self.draw(frame, self.tracker.fps, hands, self.tracker.correct_kpts, depth=True)
                 self.change_pixmap_signal.emit(frame)
 
     def stop(self) -> None:

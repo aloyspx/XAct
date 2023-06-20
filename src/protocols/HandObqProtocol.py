@@ -40,4 +40,6 @@ class HandObqProtocol(BaseProtocol):
                 self.table_widget.setItem(i, 1, QTableWidgetItem(f"{distances[j]} mm"))
                 i += 1
 
-        return is_angle and all(pinky_close)
+        correct_kpts = 17 * [is_angle] + pinky_close
+
+        return (is_angle and all(pinky_close)), correct_kpts

@@ -19,41 +19,41 @@ class App(QMainWindow):
         # Main Window
         super().__init__()
 
-        self.setObjectName("MainWindow")
-        self.setFixedSize(1030, 525)
+        self.setObjectName("XAct")
+        self.setFixedSize(1600, 800)
         self.central_widget = QtWidgets.QWidget(self)
         self.central_widget.setObjectName("central_widget")
         self.setCentralWidget(self.central_widget)
 
         # Video Viewer
-        self.v_w, self.v_h = 800, 450
+        self.v_w, self.v_h = 1200, 675
         self.viewer = QtWidgets.QLabel(self.central_widget)
-        self.viewer.setGeometry(QtCore.QRect(10, 10, self.v_w, self.v_h))
+        self.viewer.setGeometry(QtCore.QRect(25, 25, self.v_w, self.v_h))
         self.viewer.setAutoFillBackground(False)
         self.viewer.setFrameShape(QtWidgets.QFrame.Box)
         self.viewer.setObjectName("viewer")
 
         # Calibration Button
         self.calibrateButton = QtWidgets.QPushButton(self.central_widget)
-        self.calibrateButton.setGeometry(QtCore.QRect(350, 470, 121, 31))
+        self.calibrateButton.setGeometry(QtCore.QRect(515, 720, 240, 50))
         self.calibrateButton.setObjectName("calibrateButton")
         self.calibrateButton.clicked.connect(self.on_calibrateButton_clicked)
 
         # LED Light Viewer
         self.led = QtWidgets.QLabel(self.central_widget)
-        self.led.setGeometry(QtCore.QRect(820, 10, 25, 25))
+        self.led.setGeometry(QtCore.QRect(1250, 25, 50, 50))
         self.led.setObjectName("led_indicator")
         rgb_image = cv2.imread("artifacts/blue_led.png", cv2.IMREAD_UNCHANGED)
         rgb_image = cv2.cvtColor(rgb_image, cv2.COLOR_BGRA2RGBA)
         h, w, ch = rgb_image.shape
         bytes_per_line = ch * w
         convert_to_qt_format = QtGui.QImage(rgb_image.data, w, h, bytes_per_line, QtGui.QImage.Format_RGBA8888)
-        p = convert_to_qt_format.scaled(25, 25, Qt.KeepAspectRatio)
+        p = convert_to_qt_format.scaled(50, 50, Qt.KeepAspectRatio)
         self.led.setPixmap(QtGui.QPixmap.fromImage(p))
 
         # Dropdown Protocol Picker
         self.protocolDropdown = QtWidgets.QComboBox(self.central_widget)
-        self.protocolDropdown.setGeometry(QtCore.QRect(820, 40, 195, 45))
+        self.protocolDropdown.setGeometry(QtCore.QRect(1250, 90, 325, 45))
         self.protocolDropdown.setObjectName("protocolDropdown")
         self.protocolDropdown.addItems(PROTOCOLS)
         self.protocolDropdown.currentIndexChanged.connect(self.on_protocolDropdown_changed)
@@ -62,13 +62,14 @@ class App(QMainWindow):
         self.tableWidget = QtWidgets.QTableWidget(self.central_widget)
         self.tableWidget.setObjectName("parameterTable")
 
-        self.tableWidget.setRowCount(8)
+        self.tableWidget.setRowCount(16)
         self.tableWidget.setColumnCount(2)
+        self.tableWidget.setColumnWidth(0, 150)
+        self.tableWidget.setColumnWidth(1, 175)
         self.tableWidget.setHorizontalHeaderLabels(["Constraint", "Value"])
 
         row_height = self.tableWidget.rowHeight(0)
-        column_width = self.tableWidget.columnWidth(0)
-        self.tableWidget.setGeometry(QtCore.QRect(820, 120, 2 * column_width, int(8.75 * row_height)))
+        self.tableWidget.setGeometry(QtCore.QRect(1250, 150, 325, int(16.75 * row_height)))
         self.tableWidget.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.tableWidget.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.tableWidget.verticalHeader().hide()
@@ -140,7 +141,7 @@ class App(QMainWindow):
         h, w, ch = rgb_image.shape
         bytes_per_line = ch * w
         convert_to_qt_format = QtGui.QImage(rgb_image.data, w, h, bytes_per_line, QtGui.QImage.Format_RGBA8888)
-        p = convert_to_qt_format.scaled(25, 25, Qt.KeepAspectRatio)
+        p = convert_to_qt_format.scaled(50, 50, Qt.KeepAspectRatio)
         self.led.setPixmap(QtGui.QPixmap.fromImage(p))
 
     def on_calibrateButton_clicked(self) -> None:

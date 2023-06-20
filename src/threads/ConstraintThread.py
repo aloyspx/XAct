@@ -58,7 +58,9 @@ class ConstraintThread(QThread):
             is_table_detected = self.constraint.set_detector_parameter(self.tracker.detector_plane)
 
             if is_hand_detected and is_table_detected:
-                if self.constraint.check_constraints():
+                is_correct, correct_kpts = self.constraint.check_constraints()
+                self.tracker.correct_kpts = correct_kpts
+                if is_correct:
                     self.change_light_color_signal.emit("green")
                 else:
                     self.change_light_color_signal.emit("red")

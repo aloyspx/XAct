@@ -25,7 +25,7 @@ class HandLatProtocol(BaseProtocol):
         self.hist.append(hand)
         detector_plane = self.parameters["detector_plane"]
 
-        # 2. Check that the angle between the hand and the detector plane is less than 15 degrees
+        # 2. Check that the angle between the hand and the detector plane is more than 80 degrees
         hand_plane = get_hand_plane(hand[1:])
         angle = int(calc_angle_between_planes(detector_plane, hand_plane))
         is_angle = (80 < angle)
@@ -47,4 +47,5 @@ class HandLatProtocol(BaseProtocol):
                 self.table_widget.setItem(i, 1, QTableWidgetItem(f"{distances[17 + j]} mm"))
                 i += 1
 
-        return is_tilt and is_angle and all(pinky_close)
+        correct_kpts = 17 * [is_angle] + pinky_close
+        return (is_tilt and is_angle and all(pinky_close)), correct_kpts

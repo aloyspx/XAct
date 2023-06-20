@@ -43,4 +43,4 @@ class HandPAProtocol(BaseProtocol):
                 self.table_widget.setItem(i, 1, QTableWidgetItem(f"{distances[j]} mm"))
                 i += 1
 
-        return is_angle and all(all_close)
+        return (is_angle and all(all_close)), all_close

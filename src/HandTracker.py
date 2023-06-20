@@ -115,8 +115,12 @@ class HandTracker:
         # Synchronization of spatial_calc_config_in and spatial_data_out queue packets
         self._mutex = Lock()
 
+        # Detector planes
         self.detector_plane = None
         self.get_detector_plane()
+
+        # Correctness of positioning for viewing
+        self.correct_kpts = 21 * [False]
 
     def create_color_camera(self) -> (dai.node.ColorCamera, dai.node.ImageManip):
         # Color camera
