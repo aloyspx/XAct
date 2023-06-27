@@ -21,6 +21,8 @@ class BaseProtocol:
         return {
             "hand": {key: None for key in HAND_KEYPOINTS},
             "detector_plane": [0., 0., 0., 0.],
+            "hand_calibration": {"left": [75, 75] + [50 for _ in range(19)],
+                                 "right": [75, 75] + [50 for _ in range(19)]},
             "camera_tilt": 0.
         }
 
@@ -48,6 +50,9 @@ class BaseProtocol:
                 self.parameters["hand"][coord_key] = coord
 
             return True
+
+    def set_hand_calibration_parameters(self, hand_calibrations):
+        self.parameters["hand_calibration"] = hand_calibrations
 
     def set_camera_tilt(self, tilt: float) -> None:
         self.parameters["camera_tilt"] = tilt

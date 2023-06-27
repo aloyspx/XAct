@@ -31,8 +31,8 @@ class HandPAProtocol(BaseProtocol):
 
         # 2. Check that all finger keypoints are less than 50mm from the table and wrist is less than 75mm
         distances = calc_smallest_distance_between_points_and_surface(hand, detector_plane).astype(int)
-        wrist_close = list(distances[:2] < 75)
-        rest_close = list(distances[2:] < 50)
+        wrist_close = list(distances[:2] < self.parameters["hand_calibration"][self.handedness][:2])
+        rest_close = list(distances[2:] < self.parameters["hand_calibration"][self.handedness][2:])
         all_close = wrist_close + rest_close
 
         # Display unmet constraints

@@ -5,11 +5,12 @@ import numpy as np
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPixmap
-from PyQt5.QtWidgets import QMainWindow
+from PyQt5.QtWidgets import QMainWindow, QMessageBox
 
 from src.HandTracker import HandTracker
 from src.threads.ConstraintThread import ConstraintThread
 from src.threads.VideoThread import VideoThread
+from src.utils.Calculators import calc_smallest_distance_between_points_and_surface
 from src.utils.Constants import PROTOCOLS
 
 
@@ -18,6 +19,8 @@ class App(QMainWindow):
     def __init__(self):
         # Main Window
         super().__init__()
+
+        self.pressed = False
 
         self.setObjectName("XAct")
         self.setFixedSize(1600, 800)
@@ -34,10 +37,15 @@ class App(QMainWindow):
         self.viewer.setObjectName("viewer")
 
         # Calibration Button
-        self.calibrateButton = QtWidgets.QPushButton(self.central_widget)
-        self.calibrateButton.setGeometry(QtCore.QRect(515, 720, 240, 50))
-        self.calibrateButton.setObjectName("calibrateButton")
-        self.calibrateButton.clicked.connect(self.on_calibrateButton_clicked)
+        self.calibrateTableButton = QtWidgets.QPushButton(self.central_widget)
+        self.calibrateTableButton.setGeometry(QtCore.QRect(385, 720, 240, 50))
+        self.calibrateTableButton.setObjectName("calibrateTableButton")
+        self.calibrateTableButton.clicked.connect(self.on_calibrateTableButton_clicked)
+
+        self.calibrateHandButton = QtWidgets.QPushButton(self.central_widget)
+        self.calibrateHandButton.setGeometry(QtCore.QRect(645, 720, 240, 50))
+        self.calibrateHandButton.setObjectName("calibrateHandButton")
+        self.calibrateHandButton.clicked.connect(self.on_calibrateHandButton_clicked)
 
         # LED Light Viewer
         self.led = QtWidgets.QLabel(self.central_widget)
@@ -91,7 +99,6 @@ class App(QMainWindow):
 
         # Final UI Setup
         self.retranslate_ui(self)
-        QtCore.QMetaObject.connectSlotsByName(self)
 
         # Calculates information about positioning in the background
         self.tracker = HandTracker()
@@ -110,7 +117,8 @@ class App(QMainWindow):
         _translate = QtCore.QCoreApplication.translate
         main_window.setWindowTitle(_translate("MainWindow", "MainWindow"))
         self.viewer.setText(_translate("MainWindow", "Viewer"))
-        self.calibrateButton.setText(_translate("MainWindow", "Calibrate"))
+        self.calibrateTableButton.setText(_translate("MainWindow", "Calibrate Table"))
+        self.calibrateHandButton.setText(_translate("MainWindow", "Calibrate Hand"))
 
     def update_image(self, cv_img: np.ndarray) -> None:
         """Updates the image_label with a new opencv image"""
@@ -144,8 +152,28 @@ class App(QMainWindow):
         p = convert_to_qt_format.scaled(50, 50, Qt.KeepAspectRatio)
         self.led.setPixmap(QtGui.QPixmap.fromImage(p))
 
-    def on_calibrateButton_clicked(self) -> None:
+    def on_calibrateTableButton_clicked(self) -> None:
         self.tracker.get_detector_plane()
+
+    def on_calibrateHandButton_clicked(self) -> None:
+        if not self.pressed:
+            QMessageBox.about(self, "Warning", "Please lay hand (or hands) flat, palm down and in the center "
+                                               "of the frame. Then press the button again.")
+            self.pressed = True
+        else:
+            self.pressed = False
+
+            hand_calibrations = {}
+            for key in self.tracker.hand_hist.keys():
+                if self.tracker.hand_hist[key]:
+                    masked_arr = np.ma.masked_equal(self.tracker.hand_hist[key], 0)
+                    coords_3d = np.median(masked_arr, axis=0)
+                    dists = calc_smallest_distance_between_points_and_surface(coords_3d, self.tracker.detector_plane)
+                    hand_calibrations[key] = np.maximum(np.round_(dists, decimals=-1), [75, 75] + [50 for _ in range(19)])
+                else:
+                    self.tracker.hand_hist[key] = [75, 75] + [50 for _ in range(19)]
+
+            self.constraints_thread.set_hand_calibration(hand_calibrations)
 
     def on_protocolDropdown_changed(self, idx: int) -> None:
         self.constraints_thread.set_protocol(idx)

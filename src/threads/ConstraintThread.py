@@ -19,6 +19,7 @@ class ConstraintThread(QThread):
         self._run_flag = True
         self.tracker = tracker
         self.table_widget = table_widget
+        self.hand_calibrations = None
         self.constraint = None
 
     def set_protocol(self, constraint_idx):
@@ -45,11 +46,22 @@ class ConstraintThread(QThread):
         else:
             raise NotImplementedError
 
+        if constraint_idx != 0 and self.hand_calibrations:
+            self.constraint.set_hand_calibration_parameters(self.hand_calibrations)
+
+    def set_hand_calibration(self, hand_calibrations):
+
+        if self.constraint is None:
+            self.hand_calibrations = hand_calibrations
+        else:
+            self.hand_calibrations = hand_calibrations
+            self.constraint.set_hand_calibration_parameters(hand_calibrations)
+
     def run(self) -> None:
         while self._run_flag:
-            time.sleep(1)
+            time.sleep(0.5)
 
-            if not self.constraint:
+            if self.constraint is None:
                 self.change_light_color_signal.emit("blue")
                 continue
 

@@ -37,7 +37,7 @@ class HandLatProtocol(BaseProtocol):
 
         # 3. Check that the pinky keypoints are less than 50mm from the table
         distances = calc_smallest_distance_between_points_and_surface(hand, detector_plane).astype(int)
-        pinky_close = list(distances[17:] < 50)
+        pinky_close = list(distances[17:] < self.parameters["hand_calibration"][self.handedness][17:])
 
         # Display unmet constraints
         i = 2
