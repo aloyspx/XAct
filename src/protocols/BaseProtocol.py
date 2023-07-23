@@ -43,6 +43,7 @@ class BaseProtocol:
             return False
         else:
             # filter out points with depth not detected and calculate mean with remaining coordinate history
+            hist = np.array(hist)
             masked_arr = np.ma.masked_equal(hist, 0)
             coords_3d = np.median(masked_arr, axis=0)
 

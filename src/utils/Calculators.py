@@ -26,7 +26,7 @@ def calc_smallest_distance_between_points_and_surface(points: np.ndarray, plane:
 def get_hand_plane(hand_coords) -> List[int]:
     # find the best fitting plane with ransac
     plane = pyransac.Plane()
-    plane_equation, inlier_points = plane.fit(hand_coords, thresh=10, minPoints=hand_coords.shape[0],
+    plane_equation, inlier_points = plane.fit(hand_coords, thresh=10, minPoints=int(hand_coords.size * 0.8),
                                               maxIteration=100)
 
     return plane_equation

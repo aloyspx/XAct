@@ -24,7 +24,7 @@ class ConstraintThread(QThread):
 
     def set_protocol(self, constraint_idx):
 
-        if self.constraint:
+        if self.constraint and False:
             save(self.tracker.detector_plane, self.constraint.hist, self.constraint.protocol_name)
 
         self.tracker.reset_hand_hist()
@@ -65,7 +65,11 @@ class ConstraintThread(QThread):
                 self.change_light_color_signal.emit("blue")
                 continue
 
-            self.constraint.set_camera_tilt(self.tracker.get_camera_tilt())
+            camera_tilt = self.tracker.get_camera_tilt()
+            if abs(camera_tilt - self.constraint.parameters["camera_tilt"]) > 2.:
+                self.tracker.get_detector_plane()
+
+            self.constraint.set_camera_tilt(camera_tilt)
             is_hand_detected = self.constraint.set_hand_parameter(self.tracker.hand_hist)
             is_table_detected = self.constraint.set_detector_parameter(self.tracker.detector_plane)
 
