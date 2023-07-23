@@ -112,6 +112,11 @@ class HandTracker:
         self.landmark_in = self.device.getInputQueue(name="landmark_in")
         self.landmark_out = self.device.getOutputQueue(name="landmark_out", maxSize=4, blocking=True)
 
+        # Video Encoder
+        self.video_encoder_out = self.device.getOutputQueue(name="video_encoder_out",
+                                                            maxSize=self.INTERNAL_FPS,
+                                                            blocking=False)
+
         # Synchronization of spatial_calc_config_in and spatial_data_out queue packets
         self._mutex = Lock()
 
@@ -306,6 +311,17 @@ class HandTracker:
         edge_detector_color_out.setStreamName("edge_detector_color_out")
         edge_detector_color.outputImage.link(edge_detector_color_out.input)
 
+    def create_recorder(self, color_camera):
+        encoder = self.pipeline.createVideoEncoder()
+
+        encoder.setDefaultProfilePreset(self.INTERNAL_FPS, dai.VideoEncoderProperties.Profile.H265_MAIN)
+
+        color_camera.video.link(encoder.input)
+
+        encoder_out = self.pipeline.createXLinkOut()
+        encoder_out.setStreamName("video_encoder_out")
+        encoder.bitstream.link(encoder_out.input)
+
     def create_pipeline(self) -> None:
         self.pipeline.setOpenVINOVersion(version=dai.OpenVINO.Version.VERSION_2021_4)
 
@@ -314,6 +330,7 @@ class HandTracker:
         self.create_stereo_depth()
         self.create_accelerometer()
         self.create_nn(image_manip_palm_detection)
+        self.create_recorder(color_camera)
         # self.create_edge_detector(color_camera)
 
         print("Pipeline creation successful.")

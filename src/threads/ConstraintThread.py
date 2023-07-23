@@ -1,4 +1,6 @@
 import asyncio
+import os
+from datetime import datetime
 import time
 
 from PyQt5 import QtWidgets
@@ -21,11 +23,12 @@ class ConstraintThread(QThread):
         self.table_widget = table_widget
         self.hand_calibrations = None
         self.constraint = None
+        self.video_encoder_stream = None
 
     def set_protocol(self, constraint_idx):
 
-        if self.constraint and False:
-            save(self.tracker.detector_plane, self.constraint.hist, self.constraint.protocol_name)
+        if self.constraint is not None:
+            save(self.tracker.detector_plane, self.constraint.hist, self.save_dir)
 
         self.tracker.reset_hand_hist()
 
@@ -49,6 +52,16 @@ class ConstraintThread(QThread):
         if constraint_idx != 0 and self.hand_calibrations:
             self.constraint.set_hand_calibration_parameters(self.hand_calibrations)
 
+        # TODO: this is a hack
+        if self.video_encoder_stream is not None:
+            self.video_encoder_stream.close()
+            self.video_encoder_stream = None
+
+        if constraint_idx != 0:
+            self.save_dir = f"outputs/{self.constraint.protocol_name}-{str(datetime.now()).replace(' ', '')}"
+            os.makedirs(self.save_dir, exist_ok=True)
+            self.video_encoder_stream = open(f"{self.save_dir}/video_file.h256", "wb")
+
     def set_hand_calibration(self, hand_calibrations):
 
         if self.constraint is None:
@@ -59,7 +72,12 @@ class ConstraintThread(QThread):
 
     def run(self) -> None:
         while self._run_flag:
+
             time.sleep(0.5)
+
+            if self.video_encoder_stream:
+                h265_packet = self.tracker.video_encoder_out.get()
+                h265_packet.getData().tofile(self.video_encoder_stream)
 
             if self.constraint is None:
                 self.change_light_color_signal.emit("blue")

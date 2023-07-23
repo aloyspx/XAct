@@ -11,9 +11,8 @@ from datetime import datetime
 from src.utils.Constants import PROXIMAL_LINKS
 
 
-def save(detector_plane, hand_coords, protocol_name, save_dir="outputs"):
+def save(detector_plane, hand_coords, output_folder):
     def save_thread():
-        output_folder = f"{save_dir}/{protocol_name}-{str(datetime.now()).replace(' ', '')}/"
 
         os.makedirs(output_folder, exist_ok=True)
 
