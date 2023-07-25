@@ -5,6 +5,7 @@ from PyQt5 import QtWidgets
 from PyQt5.QtCore import QThread, pyqtSignal
 
 from src.HandTracker import HandTracker
+from src.protocols.HandLatFanProtocol import HandLatFanProtocol
 from src.protocols.HandLatProtocol import HandLatProtocol
 from src.protocols.HandObqProtocol import HandObqProtocol
 from src.protocols.HandPAProtocol import HandPAProtocol
@@ -43,6 +44,10 @@ class ConstraintThread(QThread):
             self.constraint = HandLatProtocol("left", self.table_widget)
         elif constraint_idx == 6:
             self.constraint = HandLatProtocol("right", self.table_widget)
+        elif constraint_idx == 7:
+            self.constraint = HandLatFanProtocol("left", self.table_widget)
+        elif constraint_idx == 8:
+            self.constraint = HandLatFanProtocol("right", self.table_widget)
         else:
             raise NotImplementedError
 

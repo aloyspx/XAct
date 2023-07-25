@@ -445,6 +445,7 @@ class HandTracker:
 
         # We get the frame with the
         frame = self.get_color_frame()
+
         square_frame = cv2.copyMakeBorder(frame, self.pad_h, self.pad_h, self.pad_w, self.pad_w, cv2.BORDER_CONSTANT)
 
         if self.use_previous_landmark:
