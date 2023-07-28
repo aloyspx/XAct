@@ -24,7 +24,7 @@ class HandLatFanProtocol(BaseProtocol):
         # 1. Check that the angle between the palm and the detector plane is more than 80 degrees
         hand_plane = get_hand_plane(hand[[1, 2, 5, 9, 13, 17]])
         angle = int(calc_angle_between_planes(detector_plane, hand_plane))
-        is_angle = (70 < angle)
+        is_angle = (30 < angle < 60)
 
         # Display unmet constraints
         if not is_angle and True:
@@ -60,13 +60,13 @@ class HandLatFanProtocol(BaseProtocol):
         are_fingers = all([10 < finger_angles[i] < 30 for i in range(len(finger_angles))])
 
         # 4. Check that the thumb tip is pressed against the index tip
-        thb_idx_dist = calc_smallest_distance_between_two_points(hand[4], hand[8])
-        is_thb_idx = (thb_idx_dist < 20)
+        # thb_idx_dist = calc_smallest_distance_between_two_points(hand[4], hand[8])
+        # is_thb_idx = (thb_idx_dist < 20)
 
         correct_kpts = np.array(21 * [False])
         correct_kpts[[0, 1, 2, 5, 9, 13, 17]] = is_angle
         correct_kpts[[3, 6, 7, 10, 11, 12, 14, 15, 16, 18, 19, 20]] = are_fingers
-        correct_kpts[[4, 8]] = is_thb_idx
+        correct_kpts[[4, 8]] = are_fingers
         correct_kpts[18:] = all(pinky_close)
 
-        return (is_angle and pinky_close and are_fingers and is_thb_idx), correct_kpts
+        return (is_angle and pinky_close and are_fingers), correct_kpts
