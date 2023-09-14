@@ -22,7 +22,7 @@ class HandPAProtocol(BaseProtocol):
         # 1. Check that the angle between the hand and the detector plane is less than 15 degrees
         hand_plane = get_hand_plane(hand[1:])
         angle = int(calc_angle_between_planes(detector_plane, hand_plane))
-        is_angle = (angle < 20)
+        is_angle = (angle < 15)
 
         # Display unmet constraints
         if not is_angle:

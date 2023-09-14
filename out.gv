@@ -1,0 +1,163 @@
+digraph G {
+concentrate=true;
+splines="ortho";
+rankdir="LR";
+subgraph legend{
+    rank = min;
+    label = "legend";
+    Legend [shape=none, margin=0, label = <
+        <table cellspacing="0" cellpadding="0" border="1"><tr><td>Code2flow Legend</td></tr><tr><td>
+        <table cellspacing="0">
+        <tr><td>Regular function</td><td width="50px" bgcolor='#cccccc'></td></tr>
+        <tr><td>Trunk function (nothing calls this)</td><td bgcolor='#966F33'></td></tr>
+        <tr><td>Leaf function (this calls nothing else)</td><td bgcolor='#6db33f'></td></tr>
+        <tr><td>Function call</td><td><font color='black'>&#8594;</font></td></tr>
+        </table></td></tr></table>
+        >];
+}node_1d58cc35 [label="40: __init__()" name="HandTracker::HandTracker.__init__" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_bb4ca503 [label="237: create_accelerometer()" name="HandTracker::HandTracker.create_accelerometer" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_9dbb320a [label="125: create_color_camera()" name="HandTracker::HandTracker.create_color_camera" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_8ce855b0 [label="248: create_nn()" name="HandTracker::HandTracker.create_nn" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_63be2dd3 [label="309: create_pipeline()" name="HandTracker::HandTracker.create_pipeline" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_1781a6bc [label="164: create_stereo_depth()" name="HandTracker::HandTracker.create_stereo_depth" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_31e2f868 [label="324: get_color_frame()" name="HandTracker::HandTracker.get_color_frame" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_c5b6d5d9 [label="338: get_depth_at_coords()" name="HandTracker::HandTracker.get_depth_at_coords" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_4920d252 [label="533: get_detector_plane()" name="HandTracker::HandTracker.get_detector_plane" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_5178e7d0 [label="388: lm_postprocess()" name="HandTracker::HandTracker.lm_postprocess" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_19b790d4 [label="437: next_frame()" name="HandTracker::HandTracker.next_frame" shape="rect" style="rounded,filled" fillcolor="#966F33" ];
+node_98b1beab [label="368: pd_postprocess()" name="HandTracker::HandTracker.pd_postprocess" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_30f7032f [label="417: xy_to_xyz()" name="HandTracker::HandTracker.xy_to_xyz" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_c6bf2c5c [label="633: distance_to_wrist()" name="MediapipeUtils::Body.distance_to_wrist" shape="rect" style="rounded,filled" fillcolor="#966F33" ];
+node_dbe9a8b6 [label="839: determine_crop_region()" name="MediapipeUtils::BodyPreFocusing.determine_crop_region" shape="rect" style="rounded,filled" fillcolor="#966F33" ];
+node_a625359c [label="762: determine_crop_region()" name="MediapipeUtils::BodyPreFocusing.determine_crop_region" shape="rect" style="rounded,filled" fillcolor="#966F33" ];
+node_0fb41d4d [label="730: determine_torso_and_body_range()" name="MediapipeUtils::BodyPreFocusing.determine_torso_and_body_range" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_19a73a64 [label="869: estimate_focus_zone_size()" name="MediapipeUtils::BodyPreFocusing.estimate_focus_zone_size" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_1ee576d5 [label="907: get_focus_zone()" name="MediapipeUtils::BodyPreFocusing.get_focus_zone" shape="rect" style="rounded,filled" fillcolor="#966F33" ];
+node_44f48779 [label="719: torso_visible()" name="MediapipeUtils::BodyPreFocusing.torso_visible" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_1c01117e [label="39: __init__()" name="MediapipeUtils::HandRegion.__init__" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_0cd7423c [label="44: get_rotated_world_landmarks()" name="MediapipeUtils::HandRegion.get_rotated_world_landmarks" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_5ad22f62 [label="74: reset()" name="MediapipeUtils::HandednessAverage.reset" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_e24c49f2 [label="69: update()" name="MediapipeUtils::HandednessAverage.update" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_a49ec61c [label="485: angle()" name="MediapipeUtils::angle" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_fb880dbf [label="93: calculate_scale()" name="MediapipeUtils::calculate_scale" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_9aa38d57 [label="181: decode_bboxes()" name="MediapipeUtils::decode_bboxes" shape="rect" style="rounded,filled" fillcolor="#966F33" ];
+node_ee3dc9e3 [label="338: detections_to_rect()" name="MediapipeUtils::detections_to_rect" shape="rect" style="rounded,filled" fillcolor="#966F33" ];
+node_d4933870 [label="478: distance()" name="MediapipeUtils::distance" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_c27b0065 [label="100: generate_anchors()" name="MediapipeUtils::generate_anchors" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_f5287623 [label="164: generate_handtracker_anchors()" name="MediapipeUtils::generate_handtracker_anchors" shape="rect" style="rounded,filled" fillcolor="#966F33" ];
+node_1bcb0d46 [label="432: hand_landmarks_to_rect()" name="MediapipeUtils::hand_landmarks_to_rect" shape="rect" style="rounded,filled" fillcolor="#966F33" ];
+node_0adfd78b [label="329: normalize_radians()" name="MediapipeUtils::normalize_radians" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_63e8afab [label="540: recognize_gesture()" name="MediapipeUtils::recognize_gesture" shape="rect" style="rounded,filled" fillcolor="#966F33" ];
+node_be0f1590 [label="386: rect_transformation()" name="MediapipeUtils::rect_transformation" shape="rect" style="rounded,filled" fillcolor="#966F33" ];
+node_a498b24a [label="370: rotated_rect_to_points()" name="MediapipeUtils::rotated_rect_to_points" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_304282b7 [label="0: (global)()" name="main::(global)" shape="rect" style="rounded,filled" fillcolor="#966F33" ];
+node_915b2018 [label="19: __init__()" name="main::App.__init__" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_26611c3f [label="128: convert_cv_qt()" name="main::App.convert_cv_qt" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_6ba680d9 [label="155: on_calibrateTableButton_clicked()" name="main::App.on_calibrateTableButton_clicked" shape="rect" style="rounded,filled" fillcolor="#966F33" ];
+node_4198425e [label="116: retranslate_ui()" name="main::App.retranslate_ui" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_3b5db7e0 [label="123: update_image()" name="main::App.update_image" shape="rect" style="rounded,filled" fillcolor="#966F33" ];
+node_1d58cc35 -> node_63be2dd3 [color="#0072B2" penwidth="2"];
+node_1d58cc35 -> node_4920d252 [color="#0072B2" penwidth="2"];
+node_63be2dd3 -> node_bb4ca503 [color="#009E73" penwidth="2"];
+node_63be2dd3 -> node_9dbb320a [color="#009E73" penwidth="2"];
+node_63be2dd3 -> node_8ce855b0 [color="#009E73" penwidth="2"];
+node_63be2dd3 -> node_1781a6bc [color="#009E73" penwidth="2"];
+node_4920d252 -> node_c5b6d5d9 [color="#56B4E9" penwidth="2"];
+node_19b790d4 -> node_31e2f868 [color="#F0E442" penwidth="2"];
+node_19b790d4 -> node_5178e7d0 [color="#F0E442" penwidth="2"];
+node_19b790d4 -> node_98b1beab [color="#F0E442" penwidth="2"];
+node_19b790d4 -> node_30f7032f [color="#F0E442" penwidth="2"];
+node_19b790d4 -> node_5ad22f62 [color="#F0E442" penwidth="2"];
+node_19b790d4 -> node_e24c49f2 [color="#F0E442" penwidth="2"];
+node_19b790d4 -> node_e24c49f2 [color="#F0E442" penwidth="2"];
+node_30f7032f -> node_c5b6d5d9 [color="#CC79A7" penwidth="2"];
+node_30f7032f -> node_c5b6d5d9 [color="#CC79A7" penwidth="2"];
+node_30f7032f -> node_0cd7423c [color="#CC79A7" penwidth="2"];
+node_c6bf2c5c -> node_d4933870 [color="#F0E442" penwidth="2"];
+node_a625359c -> node_0fb41d4d [color="#F0E442" penwidth="2"];
+node_a625359c -> node_44f48779 [color="#F0E442" penwidth="2"];
+node_dbe9a8b6 -> node_0fb41d4d [color="#D55E00" penwidth="2"];
+node_dbe9a8b6 -> node_44f48779 [color="#D55E00" penwidth="2"];
+node_1ee576d5 -> node_19a73a64 [color="#0072B2" penwidth="2"];
+node_9aa38d57 -> node_1c01117e [color="#CC79A7" penwidth="2"];
+node_ee3dc9e3 -> node_0adfd78b [color="#009E73" penwidth="2"];
+node_c27b0065 -> node_fb880dbf [color="#0072B2" penwidth="2"];
+node_c27b0065 -> node_fb880dbf [color="#0072B2" penwidth="2"];
+node_f5287623 -> node_c27b0065 [color="#009E73" penwidth="2"];
+node_1bcb0d46 -> node_1c01117e [color="#D55E00" penwidth="2"];
+node_1bcb0d46 -> node_0adfd78b [color="#D55E00" penwidth="2"];
+node_1bcb0d46 -> node_a498b24a [color="#D55E00" penwidth="2"];
+node_63e8afab -> node_a49ec61c [color="#009E73" penwidth="2"];
+node_63e8afab -> node_a49ec61c [color="#009E73" penwidth="2"];
+node_63e8afab -> node_a49ec61c [color="#009E73" penwidth="2"];
+node_63e8afab -> node_d4933870 [color="#009E73" penwidth="2"];
+node_63e8afab -> node_d4933870 [color="#009E73" penwidth="2"];
+node_be0f1590 -> node_a498b24a [color="#000000" penwidth="2"];
+node_304282b7 -> node_915b2018 [color="#CC79A7" penwidth="2"];
+node_915b2018 -> node_1d58cc35 [color="#000000" penwidth="2"];
+node_915b2018 -> node_4198425e [color="#000000" penwidth="2"];
+node_6ba680d9 -> node_4920d252 [color="#E69F00" penwidth="2"];
+node_3b5db7e0 -> node_26611c3f [color="#000000" penwidth="2"];
+subgraph cluster_9f3e0a72 {
+    label="File: HandTracker";
+    name="HandTracker";
+    style="filled";
+    graph[style=dotted];
+    subgraph cluster_046094cd {
+        node_1d58cc35 node_9dbb320a node_1781a6bc node_bb4ca503 node_8ce855b0 node_63be2dd3 node_31e2f868 node_c5b6d5d9 node_98b1beab node_5178e7d0 node_30f7032f node_19b790d4 node_4920d252;
+        label="Class: HandTracker";
+        name="HandTracker";
+        style="filled";
+        graph[style=dotted];
+    };
+};
+subgraph cluster_900a4c4f {
+    node_fb880dbf node_c27b0065 node_f5287623 node_9aa38d57 node_0adfd78b node_ee3dc9e3 node_a498b24a node_be0f1590 node_1bcb0d46 node_d4933870 node_a49ec61c node_63e8afab;
+    label="File: MediapipeUtils";
+    name="MediapipeUtils";
+    style="filled";
+    graph[style=dotted];
+    subgraph cluster_4547fc51 {
+        node_1c01117e node_0cd7423c;
+        label="Class: HandRegion";
+        name="HandRegion";
+        style="filled";
+        graph[style=dotted];
+    };
+    subgraph cluster_151a520e {
+        node_e24c49f2 node_5ad22f62;
+        label="Class: HandednessAverage";
+        name="HandednessAverage";
+        style="filled";
+        graph[style=dotted];
+    };
+    subgraph cluster_5f27f927 {
+        node_c6bf2c5c;
+        label="Class: Body";
+        name="Body";
+        style="filled";
+        graph[style=dotted];
+    };
+    subgraph cluster_0889bc63 {
+        node_44f48779 node_0fb41d4d node_a625359c node_dbe9a8b6 node_19a73a64 node_1ee576d5;
+        label="Class: BodyPreFocusing";
+        name="BodyPreFocusing";
+        style="filled";
+        graph[style=dotted];
+    };
+};
+subgraph cluster_121d5eed {
+    node_304282b7;
+    label="File: main";
+    name="main";
+    style="filled";
+    graph[style=dotted];
+    subgraph cluster_926bc6c5 {
+        node_915b2018 node_4198425e node_3b5db7e0 node_26611c3f node_6ba680d9;
+        label="Class: App";
+        name="App";
+        style="filled";
+        graph[style=dotted];
+    };
+};
+}

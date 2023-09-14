@@ -18,7 +18,7 @@ class HandObqProtocol(BaseProtocol):
         self.hist.append(hand)
         detector_plane = self.parameters["detector_plane"]
 
-        # 1. Check that the angle between the hand and the detector plane is less than 15 degrees
+        # 1. Check that the angle between the hand and the detector plane is less than 30 and 60 degrees
         hand_plane = get_hand_plane(hand[1:])
         angle = int(calc_angle_between_planes(detector_plane, hand_plane))
         is_angle = (30 < angle < 60)
